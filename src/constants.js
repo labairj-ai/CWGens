@@ -30,12 +30,12 @@ export const S = {
 };
 
 export const TERRAIN = {
-  O: { name: 'Open Field', moveCost: 1,   cover: 0,    color: '#8fba56', stroke: '#6a9040', label: '' },
-  R: { name: 'Road',       moveCost: 0.5, cover: 0,    color: '#c8b47a', stroke: '#a09055', label: 'road' },
-  H: { name: 'Hill',       moveCost: 2,   cover: 0.20, color: '#9b7450', stroke: '#6e5030', label: 'hill' },
-  F: { name: 'Forest',     moveCost: 2,   cover: 0.30, color: '#3a6e3a', stroke: '#2a5028', label: 'wood' },
-  T: { name: 'Town',       moveCost: 2,   cover: 0.25, color: '#8a8070', stroke: '#606050', label: 'town' },
-  W: { name: 'River',      moveCost: 3,   cover: 0,    color: '#4a8ab0', stroke: '#2a6090', label: 'river' },
+  O: { name: 'Open Field', moveCost: 1,   cover: 0,    color: '#9ea85a', label: '' },
+  R: { name: 'Road',       moveCost: 0.5, cover: 0,    color: '#c0b264', label: 'road' },
+  H: { name: 'Hill',       moveCost: 2,   cover: 0.20, color: '#907040', label: 'hill' },
+  F: { name: 'Forest',     moveCost: 2,   cover: 0.30, color: '#3e5e22', label: 'wood' },
+  T: { name: 'Town',       moveCost: 2,   cover: 0.25, color: '#887464', label: 'town' },
+  W: { name: 'River',      moveCost: 3,   cover: 0,    color: '#5880a8', label: 'river' },
 };
 
 export const UNIT_TYPES = {
