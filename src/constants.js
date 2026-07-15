@@ -41,7 +41,7 @@ export const TERRAIN = {
 export const UNIT_TYPES = {
   infantry:  { name: 'Infantry',  moveRange: 2, attackRange: 1, ammoCap: 8,  canCharge: true  },
   cavalry:   { name: 'Cavalry',   moveRange: 4, attackRange: 1, ammoCap: 4,  canCharge: true  },
-  artillery: { name: 'Artillery', moveRange: 1, attackRange: 2, ammoCap: 6,  canCharge: false },
+  artillery: { name: 'Artillery', moveRange: 2, attackRange: 2, ammoCap: 6,  canCharge: false },
   general:   { name: 'General',   moveRange: 3, attackRange: 0, ammoCap: 0,  canCharge: false },
 };
 
