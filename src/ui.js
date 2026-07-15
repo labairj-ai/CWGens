@@ -202,12 +202,16 @@ export function getButtons(game) {
     const canAttack = !sel.hasAttacked && sel.ammo > 0 && sel._typeDef.attackRange > 0;
     const canCharge = canAttack && sel._typeDef.canCharge && getAdjacentEnemies(sel, game).length > 0;
     const targetsExist = game.attackTargets.length > 0;
+    const canDigIn = !sel.hasMoved && !sel.dugIn && sel.type !== 'cavalry';
 
     if (canAttack && targetsExist) {
       buttons.push({ label: 'ATTACK', id: 'attack', hot: game.attackMode, disabled: false });
     }
     if (canCharge) {
       buttons.push({ label: 'CHARGE', id: 'charge', hot: game.chargeMode, disabled: false });
+    }
+    if (canDigIn) {
+      buttons.push({ label: 'DIG IN', id: 'digin', hot: sel.dugIn, disabled: false });
     }
     buttons.push({ label: 'WAIT', id: 'wait', hot: false, disabled: false });
   }

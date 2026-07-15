@@ -16,6 +16,16 @@ export function drawUnit(ctx, unit, isSelected, isActive, alpha = 1) {
 
   const col = unit.side === 'union' ? U : C;
 
+  if (unit.dugIn) {
+    ctx.strokeStyle = '#7a5018';
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([2.5, 2]);
+    ctx.beginPath();
+    ctx.arc(x, y + 5, 14, Math.PI * 0.12, Math.PI * 0.88);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   if (isSelected) {
     ctx.shadowColor = COLORS.gold;
     ctx.shadowBlur = 14;
@@ -43,6 +53,13 @@ export function drawUnit(ctx, unit, isSelected, isActive, alpha = 1) {
   ctx.beginPath();
   ctx.arc(x - 6, by, 2.5, 0, Math.PI * 2);
   ctx.fill();
+
+  if (unit.dugIn) {
+    ctx.fillStyle = '#c8921a';
+    ctx.font = '7px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('DUG', x - 10, by - 3);
+  }
 
   ctx.fillStyle = '#fff';
   ctx.font = `bold ${Math.round(HEX_SIZE * 0.42)}px monospace`;

@@ -97,3 +97,12 @@ export const MAX_TURNS = 20;
 export const MORALE_ROUT_THRESHOLD = 10;
 export const MORALE_RETREAT_THRESHOLD = 28;
 export const VICTORY_MORALE_PCT = 0.28;
+export const DIG_IN_COVER = 0.22;
+
+// Units that march onto the map edge on a specific turn number.
+export const REINFORCEMENTS = [
+  { turn:4,  id:'c9',  name:"Pender's Division",  type:'infantry', side:'confederate', q:1,  r:6, morale:85, strength:9  },
+  { turn:4,  id:'u9',  name:"Slocum's XII Corps",  type:'infantry', side:'union',       q:14, r:1, morale:82, strength:9  },
+  { turn:10, id:'c10', name:"Pickett's Division",  type:'infantry', side:'confederate', q:1,  r:3, morale:92, strength:10 },
+  { turn:10, id:'u10', name:"Crawford's Division", type:'infantry', side:'union',       q:14, r:5, morale:80, strength:8  },
+];

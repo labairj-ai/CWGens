@@ -2,6 +2,7 @@ import {
   S, GETTYSBURG_TERRAIN, GETTYSBURG_UNITS, UNIT_TYPES,
   TERRAIN, MORALE_ROUT_THRESHOLD, MORALE_RETREAT_THRESHOLD,
   VICTORY_MORALE_PCT, TURNS_PER_DAY, MAX_TURNS,
+  DIG_IN_COVER, REINFORCEMENTS,
 } from './constants.js';
 import {
   getMovableHexes, getAttackableTargets, hexDistance, getNeighbors, pixelToHex
@@ -51,6 +52,7 @@ export class Game {
       hasMoved: false,
       hasAttacked: false,
       routed: false,
+      dugIn: false,
       _typeDef: UNIT_TYPES[u.type],
     }));
     this.turn = 1;
@@ -147,6 +149,12 @@ export class Game {
       this.clearSelection();
       return;
     }
+    if (id === 'digin' && this.selectedUnit) {
+      this.selectedUnit.dugIn = true;
+      this.selectedUnit.hasMoved = true;
+      this.clearSelection();
+      return;
+    }
     if (id === 'attack') {
       this.attackMode = !this.attackMode;
       this.chargeMode = false;
@@ -225,6 +233,7 @@ export class Game {
     unit.q = q;
     unit.r = r;
     unit.hasMoved = true;
+    unit.dugIn = false;  // moving breaks entrenchment
     unit.org = Math.max(20, unit.org - 8);
 
     if (!unit.hasAttacked && unit.ammo > 0) {
@@ -246,7 +255,7 @@ export class Game {
 
     const dist = hexDistance(atkUnit.q, atkUnit.r, defUnit.q, defUnit.r);
     const defTerrain = TERRAIN[this.terrain[defUnit.r][defUnit.q]];
-    const cover = defTerrain.cover;
+    const cover = defTerrain.cover + (defUnit.dugIn ? DIG_IN_COVER : 0);
 
     const atkMoraleFactor = atkUnit.morale / 100;
     const defMoraleFactor = defUnit.morale / 100;
@@ -387,6 +396,7 @@ export class Game {
       } else if (this.turn >= MAX_TURNS) {
         this.resolveTimeLimit();
       } else {
+        this.processReinforcements();
         this.state = S.PLAYER_TURN;
         playDrum();
       }
@@ -402,6 +412,40 @@ export class Game {
         u.strength = Math.min(u.maxStrength, u.strength + 0.5);
       }
     });
+  }
+
+  processReinforcements() {
+    const arriving = REINFORCEMENTS.filter(r => r.turn === this.turn);
+    for (const rein of arriving) {
+      if (this.units.find(u => u.id === rein.id)) continue;
+      const pos = this.findEntryHex(rein.q, rein.r);
+      if (!pos) continue;
+      this.units.push({
+        ...rein,
+        q: pos.q, r: pos.r,
+        maxStrength: rein.strength,
+        org: 88,
+        ammo: UNIT_TYPES[rein.type].ammoCap,
+        hasMoved: false,
+        hasAttacked: false,
+        routed: false,
+        dugIn: false,
+        _typeDef: UNIT_TYPES[rein.type],
+      });
+      const sideLabel = rein.side === 'union' ? 'Union' : 'Confederate';
+      const sideColor = rein.side === 'union' ? '#4488ff' : '#dd8844';
+      this.combatMsg = { title: 'REINFORCEMENTS!', body: `${rein.name} has arrived (${sideLabel})`, color: sideColor, time: performance.now() };
+      playBugle();
+    }
+  }
+
+  findEntryHex(q, r) {
+    const candidates = [{ q, r }, ...getNeighbors(q, r)];
+    for (const h of candidates) {
+      if (h.q < 0 || h.q >= 16 || h.r < 0 || h.r >= 9) continue;
+      if (!this.units.find(u => u.q === h.q && u.r === h.r && !u.routed)) return h;
+    }
+    return null;
   }
 
   checkVictory() {
