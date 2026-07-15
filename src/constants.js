@@ -6,7 +6,7 @@ export const ROWS = 9;
 
 const S3 = Math.sqrt(3);
 const HUD_H = 88;
-const PANEL_H = 88;
+const PANEL_H = 110;
 const MAP_AREA_H = H - HUD_H - PANEL_H;
 const GRID_W = HEX_SIZE * (2 + 1.5 * (COLS - 1));
 const GRID_H = HEX_SIZE * S3 * ROWS;
@@ -74,22 +74,22 @@ export const GETTYSBURG_TERRAIN = [
 ];
 
 export const GETTYSBURG_UNITS = [
-  { id:'c1', name:"Rodes' Division",  type:'infantry',  side:'confederate', q:2,  r:1, morale:88, strength:9  },
-  { id:'c2', name:"Heth's Division",  type:'infantry',  side:'confederate', q:2,  r:3, morale:85, strength:9  },
-  { id:'c3', name:"McLaws' Division", type:'infantry',  side:'confederate', q:2,  r:5, morale:82, strength:8  },
-  { id:'c4', name:"Hood's Division",  type:'infantry',  side:'confederate', q:2,  r:7, morale:85, strength:9  },
-  { id:'c5', name:"Early's Division", type:'infantry',  side:'confederate', q:1,  r:0, morale:80, strength:8  },
-  { id:'c6', name:"Stuart's Cavalry", type:'cavalry',   side:'confederate', q:1,  r:4, morale:90, strength:7  },
-  { id:'c7', name:"Long. Artillery",  type:'artillery', side:'confederate', q:3,  r:4, morale:78, strength:8  },
-  { id:'c8', name:"Gen. R.E. Lee",    type:'general',   side:'confederate', q:1,  r:2, morale:95, strength:10 },
-  { id:'u1', name:"Howard's Corps",   type:'infantry',  side:'union', q:13, r:1, morale:80, strength:8  },
-  { id:'u2', name:"Reynolds' Corps",  type:'infantry',  side:'union', q:13, r:3, morale:85, strength:9  },
-  { id:'u3', name:"Hancock's Corps",  type:'infantry',  side:'union', q:13, r:5, morale:88, strength:9  },
-  { id:'u4', name:"Sickles' Corps",   type:'infantry',  side:'union', q:12, r:7, morale:80, strength:8  },
-  { id:'u5', name:"Sedgwick's Corps", type:'infantry',  side:'union', q:14, r:6, morale:82, strength:8  },
-  { id:'u6', name:"Buford's Cavalry", type:'cavalry',   side:'union', q:11, r:3, morale:85, strength:7  },
-  { id:'u7', name:"Arty. Reserve",    type:'artillery', side:'union', q:13, r:4, morale:78, strength:8  },
-  { id:'u8', name:"Gen. Meade",       type:'general',   side:'union', q:14, r:4, morale:92, strength:10 },
+  { id:'c1', name:"Rodes' Division",  commander:'Maj. Gen. Rodes',     type:'infantry',  side:'confederate', q:2,  r:1, morale:88, strength:9,  infl:7, ldrorg:7, loyal:8, hlth:8 },
+  { id:'c2', name:"Heth's Division",  commander:'Maj. Gen. Heth',      type:'infantry',  side:'confederate', q:2,  r:3, morale:85, strength:9,  infl:6, ldrorg:6, loyal:7, hlth:7 },
+  { id:'c3', name:"McLaws' Division", commander:'Maj. Gen. McLaws',    type:'infantry',  side:'confederate', q:2,  r:5, morale:82, strength:8,  infl:7, ldrorg:8, loyal:7, hlth:8 },
+  { id:'c4', name:"Hood's Division",  commander:'Maj. Gen. Hood',      type:'infantry',  side:'confederate', q:2,  r:7, morale:85, strength:9,  infl:8, ldrorg:7, loyal:8, hlth:6 },
+  { id:'c5', name:"Early's Division", commander:'Maj. Gen. Early',     type:'infantry',  side:'confederate', q:1,  r:0, morale:80, strength:8,  infl:7, ldrorg:7, loyal:6, hlth:8 },
+  { id:'c6', name:"Stuart's Cavalry", commander:'Maj. Gen. Stuart',    type:'cavalry',   side:'confederate', q:1,  r:4, morale:90, strength:7,  infl:9, ldrorg:8, loyal:8, hlth:9 },
+  { id:'c7', name:"Long. Artillery",  commander:'Col. Alexander',      type:'artillery', side:'confederate', q:3,  r:4, morale:78, strength:8,  infl:7, ldrorg:9, loyal:8, hlth:8 },
+  { id:'c8', name:"Gen. R.E. Lee",    commander:'Gen. Robert E. Lee',  type:'general',   side:'confederate', q:1,  r:2, morale:95, strength:10, infl:10,ldrorg:9, loyal:10,hlth:7 },
+  { id:'u1', name:"Howard's Corps",   commander:'Maj. Gen. Howard',    type:'infantry',  side:'union', q:13, r:1, morale:80, strength:8,  infl:6, ldrorg:6, loyal:8, hlth:8 },
+  { id:'u2', name:"Reynolds' Corps",  commander:'Maj. Gen. Reynolds',  type:'infantry',  side:'union', q:13, r:3, morale:85, strength:9,  infl:9, ldrorg:9, loyal:9, hlth:7 },
+  { id:'u3', name:"Hancock's Corps",  commander:'Maj. Gen. Hancock',   type:'infantry',  side:'union', q:13, r:5, morale:88, strength:9,  infl:9, ldrorg:9, loyal:9, hlth:8 },
+  { id:'u4', name:"Sickles' Corps",   commander:'Maj. Gen. Sickles',   type:'infantry',  side:'union', q:12, r:7, morale:80, strength:8,  infl:7, ldrorg:6, loyal:7, hlth:7 },
+  { id:'u5', name:"Sedgwick's Corps", commander:'Maj. Gen. Sedgwick',  type:'infantry',  side:'union', q:14, r:6, morale:82, strength:8,  infl:8, ldrorg:8, loyal:9, hlth:9 },
+  { id:'u6', name:"Buford's Cavalry", commander:'Brig. Gen. Buford',   type:'cavalry',   side:'union', q:11, r:3, morale:85, strength:7,  infl:8, ldrorg:8, loyal:9, hlth:6 },
+  { id:'u7', name:"Arty. Reserve",    commander:'Brig. Gen. Hunt',     type:'artillery', side:'union', q:13, r:4, morale:78, strength:8,  infl:8, ldrorg:9, loyal:9, hlth:8 },
+  { id:'u8', name:"Gen. Meade",       commander:'Maj. Gen. Meade',     type:'general',   side:'union', q:14, r:4, morale:92, strength:10, infl:9, ldrorg:9, loyal:9, hlth:8 },
 ];
 
 export const TURNS_PER_DAY = 6;
@@ -101,8 +101,8 @@ export const DIG_IN_COVER = 0.22;
 
 // Units that march onto the map edge on a specific turn number.
 export const REINFORCEMENTS = [
-  { turn:4,  id:'c9',  name:"Pender's Division",  type:'infantry', side:'confederate', q:1,  r:6, morale:85, strength:9  },
-  { turn:4,  id:'u9',  name:"Slocum's XII Corps",  type:'infantry', side:'union',       q:14, r:1, morale:82, strength:9  },
-  { turn:10, id:'c10', name:"Pickett's Division",  type:'infantry', side:'confederate', q:1,  r:3, morale:92, strength:10 },
-  { turn:10, id:'u10', name:"Crawford's Division", type:'infantry', side:'union',       q:14, r:5, morale:80, strength:8  },
+  { turn:4,  id:'c9',  name:"Pender's Division",  commander:'Maj. Gen. Pender',   type:'infantry', side:'confederate', q:1,  r:6, morale:85, strength:9,  infl:8, ldrorg:7, loyal:8, hlth:7 },
+  { turn:4,  id:'u9',  name:"Slocum's XII Corps",  commander:'Maj. Gen. Slocum',   type:'infantry', side:'union',       q:14, r:1, morale:82, strength:9,  infl:7, ldrorg:8, loyal:9, hlth:8 },
+  { turn:10, id:'c10', name:"Pickett's Division",  commander:'Maj. Gen. Pickett',  type:'infantry', side:'confederate', q:1,  r:3, morale:92, strength:10, infl:8, ldrorg:7, loyal:8, hlth:8 },
+  { turn:10, id:'u10', name:"Crawford's Division", commander:'Brig. Gen. Crawford',type:'infantry', side:'union',       q:14, r:5, morale:80, strength:8,  infl:6, ldrorg:7, loyal:8, hlth:8 },
 ];

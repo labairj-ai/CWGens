@@ -86,7 +86,7 @@ export function drawBottomPanel(ctx, game) {
     ctx.font = 'bold 14px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('ENEMY MOVING...', W / 2, PANEL_TOP + 44);
+    ctx.fillText('ENEMY MOVING...', W / 2, PANEL_TOP + 55);
     return;
   }
 
@@ -95,63 +95,97 @@ export function drawBottomPanel(ctx, game) {
     ctx.font = 'bold 14px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('NIGHT — Units Recovering', W / 2, PANEL_TOP + 44);
+    ctx.fillText('NIGHT — Units Recovering', W / 2, PANEL_TOP + 55);
     return;
   }
 
   if (sel) {
-    const sideColor = sel.side === 'union' ? COLORS.unionLight : COLORS.confLight;
-    ctx.fillStyle = sideColor;
-    ctx.font = FONT_TITLE;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(sel.name, 12, PANEL_TOP + 6);
-
-    ctx.fillStyle = '#806040';
-    ctx.font = FONT_SMALL;
-    const typeName = UNIT_TYPES[sel.type]?.name || sel.type;
-    ctx.fillText(`${typeName}  •  ${sel.side === 'union' ? 'Union' : 'Confederate'}`, 12, PANEL_TOP + 22);
-
+    drawUnitIdentity(ctx, sel);
     drawStatBars(ctx, sel);
+    drawLeaderPanel(ctx, sel);
   } else {
     ctx.fillStyle = '#504030';
     ctx.font = FONT_BODY;
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('Click a unit to select it', 12, PANEL_TOP + 30);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Click a unit to select it', 12, PANEL_TOP + 55);
   }
 
   drawActionButtons(ctx, game);
 }
 
+function drawUnitIdentity(ctx, unit) {
+  const x = 8;
+  const sideColor = unit.side === 'union' ? COLORS.unionLight : COLORS.confLight;
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  ctx.fillStyle = sideColor;
+  ctx.font = 'bold 12px serif';
+  ctx.fillText(unit.name, x, PANEL_TOP + 5);
+
+  ctx.fillStyle = '#907860';
+  ctx.font = 'italic 10px serif';
+  ctx.fillText(unit.commander || '', x, PANEL_TOP + 20);
+
+  ctx.fillStyle = '#706040';
+  ctx.font = '9px sans-serif';
+  const typeName = UNIT_TYPES[unit.type]?.name || unit.type;
+  ctx.fillText(`${typeName} • ${unit.side === 'union' ? 'Union' : 'Confederate'}`, x, PANEL_TOP + 33);
+
+  const cond = unit.org > 75 ? { label: 'FRESH',     color: '#44cc44' }
+             : unit.org > 50 ? { label: 'STEADY',    color: '#88cc44' }
+             : unit.org > 25 ? { label: 'TIRED',     color: '#cc8822' }
+             :                  { label: 'EXHAUSTED', color: '#cc3333' };
+  ctx.fillStyle = cond.color;
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText(cond.label, x, PANEL_TOP + 46);
+
+  if (unit.dugIn) {
+    ctx.fillStyle = '#8a9040';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText('⊲ DUG IN', x, PANEL_TOP + 59);
+  }
+
+  const maxStr = unit.maxStrength || unit.strength;
+  const casualtyPct = Math.round((1 - unit.strength / maxStr) * 100);
+  ctx.fillStyle = '#706050';
+  ctx.font = '9px monospace';
+  ctx.fillText(`Str: ${Math.ceil(unit.strength)}/${maxStr}  (-${casualtyPct}%)`, x, PANEL_TOP + 72);
+
+  const moraleLabel = unit.morale > 70 ? 'Confident' : unit.morale > 40 ? 'Determined' : unit.morale > 20 ? 'Wavering' : 'Near Rout';
+  const moraleColor = unit.morale > 70 ? '#44cc44' : unit.morale > 40 ? '#cccc44' : unit.morale > 20 ? '#cc8844' : '#cc3333';
+  ctx.fillStyle = moraleColor;
+  ctx.font = '9px sans-serif';
+  ctx.fillText(moraleLabel, x, PANEL_TOP + 85);
+}
+
 function drawStatBars(ctx, unit) {
-  const y = PANEL_TOP + 40;
+  const bx = 196;
+  const bw = 150;
+
   const bars = [
-    { label: 'MORALE', pct: unit.morale / 100, color: unit.morale > 60 ? '#44cc44' : unit.morale > 30 ? '#cccc22' : '#cc3333' },
-    { label: 'STR',    pct: unit.strength / (unit.maxStrength || unit.strength), color: '#4488cc' },
-    { label: 'ORG',    pct: unit.org / 100,     color: '#cc8844' },
-    { label: 'AMMO',   pct: unit.ammo / (unit._typeDef?.ammoCap || 1), color: '#cc44cc' },
+    { label: 'MORALE', pct: unit.morale / 100, color: unit.morale > 60 ? '#44cc44' : unit.morale > 30 ? '#cccc22' : '#cc3333', val: String(Math.round(unit.morale)) },
+    { label: 'STR',    pct: unit.strength / (unit.maxStrength || unit.strength), color: '#4488cc', val: `${Math.ceil(unit.strength)}/${unit.maxStrength || unit.strength}` },
+    { label: 'ORG',    pct: unit.org / 100, color: '#cc8844', val: String(Math.round(unit.org)) },
+    { label: 'AMMO',   pct: unit.ammo / (unit._typeDef?.ammoCap || 1), color: '#cc44cc', val: String(unit.ammo) },
   ];
 
-  bars.forEach(({ label, pct, color }, i) => {
-    const bx = 12 + i * 130;
+  bars.forEach(({ label, pct, color, val }, i) => {
+    const y = PANEL_TOP + 5 + i * 25;
     ctx.fillStyle = '#604030';
     ctx.font = '9px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(label, bx, y);
     ctx.fillStyle = '#0a0800';
-    ctx.fillRect(bx, y + 11, 110, 8);
+    ctx.fillRect(bx, y + 11, bw, 8);
     ctx.fillStyle = color;
-    ctx.fillRect(bx, y + 11, Math.max(0, Math.min(1, pct)) * 110, 8);
+    ctx.fillRect(bx, y + 11, Math.max(0, Math.min(1, pct)) * bw, 8);
     ctx.strokeStyle = '#403020';
     ctx.lineWidth = 0.5;
-    ctx.strokeRect(bx, y + 11, 110, 8);
-    let val = '';
-    if (label === 'MORALE') val = String(Math.round(unit.morale));
-    else if (label === 'STR') val = `${Math.ceil(unit.strength)}/${unit.maxStrength || unit.strength}`;
-    else if (label === 'ORG') val = String(Math.round(unit.org));
-    else if (label === 'AMMO') val = String(unit.ammo);
+    ctx.strokeRect(bx, y + 11, bw, 8);
     ctx.font = '8px monospace';
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -161,22 +195,83 @@ function drawStatBars(ctx, unit) {
   });
 }
 
+function drawLeaderPanel(ctx, unit) {
+  const lx = 356;
+
+  ctx.fillStyle = '#6a5030';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('LEADERSHIP', lx, PANEL_TOP + 5);
+
+  const ratings = [
+    { label: 'INFL',  val: unit.infl   ?? 5, color: '#c07030', col: 0, row: 0 },
+    { label: 'LOYAL', val: unit.loyal  ?? 5, color: '#30a050', col: 1, row: 0 },
+    { label: 'ORG',   val: unit.ldrorg ?? 5, color: '#3080c0', col: 0, row: 1 },
+    { label: 'HLTH',  val: unit.hlth   ?? 5, color: '#c04040', col: 1, row: 1 },
+  ];
+
+  const boxW = 78, boxH = 40, colGap = 6, rowGap = 4;
+
+  ratings.forEach(({ label, val, color, col, row }) => {
+    const bx = lx + col * (boxW + colGap);
+    const by = PANEL_TOP + 18 + row * (boxH + rowGap);
+
+    ctx.fillStyle = 'rgba(10,8,0,0.5)';
+    ctx.fillRect(bx, by, boxW, boxH);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(bx, by, boxW, boxH);
+
+    ctx.fillStyle = '#906840';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, bx + 3, by + 3);
+
+    ctx.fillStyle = color;
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(String(val), bx + boxW - 4, by + 2);
+
+    const segW = 6, segH = 4, segGap = 0.8;
+    const totalSegW = 10 * segW + 9 * segGap;
+    const segStartX = bx + (boxW - totalSegW) / 2;
+    for (let s = 0; s < 10; s++) {
+      ctx.fillStyle = s < val ? color : '#2a2010';
+      ctx.fillRect(segStartX + s * (segW + segGap), by + boxH - 8, segW, segH);
+    }
+  });
+}
+
+function getButtonRects(game) {
+  const btns = getButtons(game);
+  if (!btns.length) return [];
+
+  const bw = 80, bh = 22, gap = 5, maxPerRow = 3, rightEdge = W - 8;
+  const result = [];
+  for (let i = 0; i < btns.length; i += maxPerRow) {
+    const row = btns.slice(i, Math.min(i + maxPerRow, btns.length));
+    const ri = Math.floor(i / maxPerRow);
+    const rowW = row.length * bw + (row.length - 1) * gap;
+    const rowX = rightEdge - rowW;
+    const rowY = PANEL_TOP + 8 + ri * (bh + gap + 4);
+    row.forEach((btn, ci) => {
+      result.push({ btn, x: rowX + ci * (bw + gap), y: rowY, w: bw, h: bh });
+    });
+  }
+  return result;
+}
+
 export function drawActionButtons(ctx, game) {
-  const buttons = getButtons(game);
-  const bh = 28, by = PANEL_TOP + 56;
-  const bw = 90;
-  const startX = W - buttons.length * (bw + 8) - 8;
-
-  buttons.forEach((btn, i) => {
-    const bx = startX + i * (bw + 8);
-    const disabled = btn.disabled;
-    const hot = btn.hot;
-
+  const rects = getButtonRects(game);
+  rects.forEach(({ btn, x, y, w, h }) => {
+    const { disabled, hot } = btn;
     ctx.fillStyle = disabled ? '#2a2010' : hot ? '#f0c040' : COLORS.parchment;
     ctx.strokeStyle = disabled ? '#403020' : hot ? '#c09010' : '#806040';
     ctx.lineWidth = hot ? 2 : 1;
     ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 4);
+    ctx.roundRect(x, y, w, h, 4);
     ctx.fill();
     ctx.stroke();
 
@@ -184,10 +279,8 @@ export function drawActionButtons(ctx, game) {
     ctx.font = hot ? 'bold 11px serif' : '11px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(btn.label, bx + bw / 2, by + bh / 2);
+    ctx.fillText(btn.label, x + w / 2, y + h / 2);
   });
-
-  return buttons.map((btn, i) => ({ ...btn, x: startX + i * (bw + 8), y: by, w: bw, h: bh }));
 }
 
 export function getButtons(game) {
@@ -227,16 +320,8 @@ function getAdjacentEnemies(unit, game) {
 }
 
 export function getButtonAt(px, py, game) {
-  const bh = 28, by = PANEL_TOP + 56;
-  const bw = 90;
-  const buttons = getButtons(game);
-  const startX = W - buttons.length * (bw + 8) - 8;
-
-  for (let i = 0; i < buttons.length; i++) {
-    const bx = startX + i * (bw + 8);
-    if (px >= bx && px <= bx + bw && py >= by && py <= by + bh) {
-      return buttons[i];
-    }
+  for (const { btn, x, y, w, h } of getButtonRects(game)) {
+    if (px >= x && px <= x + w && py >= y && py <= y + h) return btn;
   }
   return null;
 }
