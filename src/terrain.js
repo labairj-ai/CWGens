@@ -112,6 +112,8 @@ function drawTerrainHex(ctx, q, r, key, terrain) {
     case 'W': waterTexture(ctx, q, r, terrain);     break;
   }
 
+  blendEdges(ctx, q, r, key, terrain);
+
   ctx.restore();
 
   drawHexPath(ctx, q, r);
@@ -127,6 +129,74 @@ function neighborKey(q, r, dirIdx, terrain) {
   const nq = q + dq, nr = r + dr;
   if (nr < 0 || nr >= terrain.length || nq < 0 || nq >= terrain[0].length) return null;
   return terrain[nr][nq];
+}
+
+// ── Edge blending: soft color bleed from neighboring terrain types ─────────────
+// Draws radial gradients at each edge where terrain types differ, creating
+// natural-looking transition zones. Called inside the active hex clip.
+function blendEdges(ctx, q, r, key, terrain) {
+  if (key === 'W' || key === 'R') return;
+  const { x, y } = hexToPixel(q, r);
+  const BLEND_R = EDGE_R * 0.62;
+
+  for (let i = 0; i < 6; i++) {
+    const nkey = neighborKey(q, r, i, terrain);
+    if (!nkey || nkey === key || nkey === 'W' || nkey === 'R') continue;
+
+    const a = EDGE_ANG[i];
+    const emx = x + EDGE_R * Math.cos(a);
+    const emy = y + EDGE_R * Math.sin(a);
+
+    const nc = TERRAIN[nkey].color;
+    const nr2 = parseInt(nc.slice(1, 3), 16);
+    const ng  = parseInt(nc.slice(3, 5), 16);
+    const nb  = parseInt(nc.slice(5, 7), 16);
+    const maxA = nkey === 'F' ? 0.52 : 0.38;
+
+    const grad = ctx.createRadialGradient(emx, emy, 0, emx, emy, BLEND_R);
+    grad.addColorStop(0,    `rgba(${nr2},${ng},${nb},${maxA})`);
+    grad.addColorStop(0.55, `rgba(${nr2},${ng},${nb},${(maxA * 0.25).toFixed(2)})`);
+    grad.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - HEX_SIZE * 1.2, y - HEX_SIZE * 1.2, HEX_SIZE * 2.4, HEX_SIZE * 2.4);
+  }
+}
+
+// ── Animated water shimmer ─────────────────────────────────────────────────────
+// Draws time-shifting noise highlights on water hexes on top of the static cache.
+// Called every frame from game.js with performance.now() timestamp.
+export function drawWaterAnimations(ctx, terrain, timestamp) {
+  const t = timestamp * 0.0008;
+  const STEP = 5;
+  const R2 = HEX_SIZE + 2;
+
+  for (let r = 0; r < terrain.length; r++) {
+    for (let q = 0; q < terrain[r].length; q++) {
+      if (terrain[r][q] !== 'W') continue;
+
+      const { x, y } = hexToPixel(q, r);
+
+      ctx.save();
+      drawHexPath(ctx, q, r);
+      ctx.clip();
+
+      for (let dy = -R2; dy <= R2; dy += STEP) {
+        for (let dx = -R2; dx <= R2; dx += STEP) {
+          const px = x + dx, py = y + dy;
+          const n1 = noise2D(px * 0.12 + t * 0.8,  py * 0.10 + t * 0.30);
+          const n2 = noise2D(px * 0.18 - t * 0.50, py * 0.15 + t * 0.42);
+          const shimmer = (n1 * 0.55 + n2 * 0.45 + 1) / 2;
+          if (shimmer > 0.70) {
+            const alpha = (shimmer - 0.70) / 0.30 * 0.48;
+            ctx.fillStyle = `rgba(185,228,255,${alpha.toFixed(2)})`;
+            ctx.fillRect(px - STEP / 2, py - STEP / 2, STEP, STEP);
+          }
+        }
+      }
+
+      ctx.restore();
+    }
+  }
 }
 
 // ── OPEN FIELD ────────────────────────────────────────────────────────────────
@@ -192,18 +262,20 @@ function hillTexture(ctx, q, r) {
 
       const elev = (h + 1) / 2;
       let br, bg, bb;
-      if (elev > 0.60) {
-        const bt = (elev - 0.60) / 0.40;
-        br = Math.round(152 + bt * 38);
-        bg = Math.round(140 + bt * 28);
-        bb = Math.round(120 + bt * 26);
+      // Low elevation → grassy slope; high elevation → exposed earth/rock
+      if (elev < 0.5) {
+        const t2 = elev * 2;
+        br = Math.round(72  + t2 * 30);   // 72→102 olive-green
+        bg = Math.round(88  + t2 * 20);   // 88→108
+        bb = Math.round(22  + t2 * 18);   // 22→40
       } else {
-        br = Math.round(120 - elev * 28);
-        bg = Math.round( 92 - elev * 20);
-        bb = Math.round( 44 - elev * 16);
+        const t2 = (elev - 0.5) * 2;
+        br = Math.round(102 + t2 * 70);   // 102→172 tan/rocky
+        bg = Math.round(108 + t2 * 34);   // 108→142
+        bb = Math.round(40  + t2 * 54);   // 40→94
       }
 
-      const lit = 0.28 + diffuse * 0.95;
+      const lit = 0.42 + diffuse * 0.78;  // raised ambient; softer shadows
       ctx.fillStyle = `rgba(${Math.round(Math.min(255,br*lit))},${Math.round(Math.min(255,bg*lit))},${Math.round(Math.min(255,bb*lit))},0.94)`;
       ctx.beginPath();
       ctx.arc(px, py, BLOB, 0, Math.PI * 2);

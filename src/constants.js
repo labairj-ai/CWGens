@@ -32,7 +32,7 @@ export const S = {
 export const TERRAIN = {
   O: { name: 'Open Field', moveCost: 1,   cover: 0,    color: '#6e7838', label: '' },
   R: { name: 'Road',       moveCost: 0.5, cover: 0,    color: '#9e9060', label: 'road' },
-  H: { name: 'Hill',       moveCost: 2,   cover: 0.20, color: '#7a6040', label: 'hill' },
+  H: { name: 'Hill',       moveCost: 2,   cover: 0.20, color: '#6a6e30', label: 'hill' },
   F: { name: 'Forest',     moveCost: 2,   cover: 0.30, color: '#1c3010', label: 'wood' },
   T: { name: 'Town',       moveCost: 2,   cover: 0.25, color: '#60544a', label: 'town' },
   W: { name: 'River',      moveCost: 3,   cover: 0,    color: '#2a4a62', label: 'river' },

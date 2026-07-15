@@ -6,8 +6,9 @@ import {
 import {
   getMovableHexes, getAttackableTargets, hexDistance, getNeighbors, pixelToHex
 } from './hex.js';
-import { drawAllTerrain, drawHighlights, drawFlashEffects } from './terrain.js';
+import { drawAllTerrain, drawHighlights, drawFlashEffects, drawWaterAnimations } from './terrain.js';
 import { drawAllUnits } from './units.js';
+import { drawFog } from './fog.js';
 import { buildAIActions } from './ai.js';
 import {
   drawHUD, drawBottomPanel, drawOverlay, getButtonAt, getMenuButtonAt, getArmyMorale
@@ -103,10 +104,13 @@ export class Game {
 
   draw(ctx) {
     if (this.terrain) {
+      const now = performance.now();
       drawAllTerrain(ctx, this.terrain);
+      drawWaterAnimations(ctx, this.terrain, now);
       drawHighlights(ctx, this.moveHexes, this.attackTargets, this.selectedUnit);
-      drawFlashEffects(ctx, this.effects, performance.now());
       drawAllUnits(ctx, this.units, this.selectedUnit, this.aiActiveUnit);
+      drawFlashEffects(ctx, this.effects, now);
+      drawFog(ctx, this.terrain, this.units, this.playerSide);
     }
     drawHUD(ctx, this);
     drawBottomPanel(ctx, this);
