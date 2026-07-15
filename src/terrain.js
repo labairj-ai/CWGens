@@ -1,36 +1,61 @@
-import { TERRAIN, W, H } from './constants.js';
+import { createNoise2D } from 'simplex-noise';
+import { HEX_SIZE, TERRAIN, W, H } from './constants.js';
 import { hexToPixel, drawHexPath } from './hex.js';
 
-// Subtle topographic-map grid line
-const HEX_BORDER = 'rgba(28,18,6,0.32)';
+// ── Noise setup ───────────────────────────────────────────────────────────────
+// Seeded so the landscape is identical on every load
 
-// Deterministic per-hex RNG — stable across frames
-function hrng(q, r, idx) {
-  let h = (q * 374761393 + r * 668265263 + idx * 2246822519) >>> 0;
-  h = ((h ^ (h >>> 16)) * 2246822519) >>> 0;
-  h = ((h ^ (h >>> 13)) * 3266489917) >>> 0;
-  return ((h ^ (h >>> 16)) >>> 0) / 0xFFFFFFFF;
+function mulberry32(seed) {
+  let s = seed;
+  return () => {
+    s |= 0; s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-// ── Off-screen terrain cache ──────────────────────────────────────────────────
+const noise2D = createNoise2D(mulberry32(0x4C57_BE));
+
+// Fractional Brownian Motion — multi-octave noise, returns [-1, 1]
+function fbm(nx, ny, octaves = 5) {
+  let v = 0, amp = 0.5, freq = 1;
+  for (let i = 0; i < octaves; i++) {
+    v   += amp * noise2D(nx * freq, ny * freq);
+    amp  *= 0.5;
+    freq *= 2.0;
+  }
+  return v; // roughly in [-1, 1]
+}
+
+// ── Hex grid constants ────────────────────────────────────────────────────────
+
+const S3  = Math.sqrt(3);
+// Direction → neighbor direction vectors (even / odd column)
+const DIRS_EVEN = [[0,-1],[1,-1],[1,0],[0,1],[-1,0],[-1,-1]];
+const DIRS_ODD  = [[0,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]];
+// Corresponding edge midpoint angles (canvas coords, same for both parities)
+const EDGE_ANG  = [270,330,30,90,150,210].map(d => d * Math.PI / 180);
+const EDGE_R    = HEX_SIZE * S3 / 2;   // center → edge-midpoint distance
+
+// Subtle topographic grid line
+const HEX_BORDER = 'rgba(22,14,4,0.28)';
+
+// ── Terrain cache ─────────────────────────────────────────────────────────────
 
 let terrainCache = null;
 
-export function invalidateTerrainCache() {
-  terrainCache = null;
-}
+export function invalidateTerrainCache() { terrainCache = null; }
 
 export function drawAllTerrain(ctx, terrain) {
   if (!terrainCache) {
     terrainCache = document.createElement('canvas');
-    terrainCache.width = W;
+    terrainCache.width  = W;
     terrainCache.height = H;
     const off = terrainCache.getContext('2d');
-    for (let r = 0; r < terrain.length; r++) {
-      for (let q = 0; q < terrain[r].length; q++) {
-        drawTerrainHex(off, q, r, terrain[r][q]);
-      }
-    }
+    for (let r = 0; r < terrain.length; r++)
+      for (let q = 0; q < terrain[r].length; q++)
+        drawTerrainHex(off, q, r, terrain[r][q], terrain);
   }
   ctx.drawImage(terrainCache, 0, 0);
 }
@@ -38,25 +63,17 @@ export function drawAllTerrain(ctx, terrain) {
 export function drawHighlights(ctx, moveHexes, attackTargets, selectedUnit) {
   for (const h of moveHexes) {
     drawHexPath(ctx, h.q, h.r);
-    ctx.fillStyle = 'rgba(40,90,220,0.28)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(80,150,255,0.70)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    ctx.fillStyle = 'rgba(40,90,220,0.28)';  ctx.fill();
+    ctx.strokeStyle = 'rgba(80,150,255,0.70)'; ctx.lineWidth = 1.5; ctx.stroke();
   }
   for (const u of attackTargets) {
     drawHexPath(ctx, u.q, u.r);
-    ctx.fillStyle = 'rgba(210,40,40,0.28)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,70,70,0.80)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    ctx.fillStyle = 'rgba(210,40,40,0.28)';  ctx.fill();
+    ctx.strokeStyle = 'rgba(255,70,70,0.80)'; ctx.lineWidth = 2; ctx.stroke();
   }
   if (selectedUnit) {
     drawHexPath(ctx, selectedUnit.q, selectedUnit.r);
-    ctx.strokeStyle = '#f0c040';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
+    ctx.strokeStyle = '#f0c040'; ctx.lineWidth = 2.5; ctx.stroke();
   }
 }
 
@@ -64,10 +81,9 @@ export function drawFlashEffects(ctx, effects, now) {
   for (const e of effects) {
     const age = (now - e.startTime) / 1000;
     if (age > 1.2) continue;
-    const alpha = Math.max(0, 1 - age / 1.2);
     const { x, y } = hexToPixel(e.q, e.r);
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = Math.max(0, 1 - age / 1.2);
     ctx.fillStyle = e.color;
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
@@ -76,13 +92,11 @@ export function drawFlashEffects(ctx, effects, now) {
   }
 }
 
-// ── Per-hex drawing ───────────────────────────────────────────────────────────
+// ── Per-hex draw ──────────────────────────────────────────────────────────────
 
-function drawTerrainHex(ctx, q, r, key) {
-  const t = TERRAIN[key];
-
+function drawTerrainHex(ctx, q, r, key, terrain) {
   drawHexPath(ctx, q, r);
-  ctx.fillStyle = t.color;
+  ctx.fillStyle = TERRAIN[key].color;
   ctx.fill();
 
   ctx.save();
@@ -90,358 +104,417 @@ function drawTerrainHex(ctx, q, r, key) {
   ctx.clip();
 
   switch (key) {
-    case 'O': fieldTexture(ctx, q, r);    break;
-    case 'H': hillTexture(ctx, q, r);     break;
-    case 'F': forestTexture(ctx, q, r);   break;
-    case 'R': roadTexture(ctx, q, r);     break;
-    case 'T': townTexture(ctx, q, r);     break;
-    case 'W': waterTexture(ctx, q, r);    break;
+    case 'O': fieldTexture(ctx, q, r);              break;
+    case 'H': hillTexture(ctx, q, r);               break;
+    case 'F': forestTexture(ctx, q, r);             break;
+    case 'R': roadTexture(ctx, q, r, terrain);       break;
+    case 'T': townTexture(ctx, q, r);               break;
+    case 'W': waterTexture(ctx, q, r, terrain);     break;
   }
+
   ctx.restore();
 
   drawHexPath(ctx, q, r);
   ctx.strokeStyle = HEX_BORDER;
-  ctx.lineWidth = 0.8;
+  ctx.lineWidth = 0.7;
   ctx.stroke();
 }
 
-// ── Shared helpers ────────────────────────────────────────────────────────────
-
-// Sunlit radial gradient (upper-left bright → lower-right shadow)
-function sunGrad(ctx, x, y, radius, lightAlpha, shadowAlpha) {
-  const lx = x - radius * 0.40;
-  const ly = y - radius * 0.48;
-  const g = ctx.createRadialGradient(lx, ly, 1, x + radius * 0.25, y + radius * 0.30, radius * 1.1);
-  g.addColorStop(0,   `rgba(255,250,220,${lightAlpha})`);
-  g.addColorStop(0.45, 'rgba(0,0,0,0)');
-  g.addColorStop(1,   `rgba(10,6,0,${shadowAlpha})`);
-  return g;
+// ── Helper: get terrain key of a neighbor (null if out-of-bounds) ─────────────
+function neighborKey(q, r, dirIdx, terrain) {
+  const dirs = (q & 1) === 0 ? DIRS_EVEN : DIRS_ODD;
+  const [dq, dr] = dirs[dirIdx];
+  const nq = q + dq, nr = r + dr;
+  if (nr < 0 || nr >= terrain.length || nq < 0 || nq >= terrain[0].length) return null;
+  return terrain[nr][nq];
 }
 
-// ── Open Field ────────────────────────────────────────────────────────────────
-// Pennsylvania summer farmland from ~400ft — patchwork greens with crop texture
+// ── OPEN FIELD ────────────────────────────────────────────────────────────────
+// Pennsylvania farmland from ~400 ft — continuous patchwork greens via fbm
 
 function fieldTexture(ctx, q, r) {
   const { x, y } = hexToPixel(q, r);
+  const STEP = 5;
+  const R = HEX_SIZE + 2;
 
-  // Large color-variation zones (different grass/crop patches)
-  for (let i = 0; i < 14; i++) {
-    const dx = (hrng(q, r, i)       - 0.5) * 48;
-    const dy = (hrng(q, r, i + 50)  - 0.5) * 38;
-    const sz =  7 + hrng(q, r, i + 100) * 12;
-    const v  = hrng(q, r, i + 150);
+  for (let dy = -R; dy <= R; dy += STEP) {
+    for (let dx = -R; dx <= R; dx += STEP) {
+      const px = x + dx, py = y + dy;
+      const nx = px * 0.018, ny = py * 0.018;
 
-    // Range: dark olive (#4a5420) → warm yellow-green (#a0b040)
-    const rv = Math.round(58  + v * 52);
-    const gv = Math.round(72  + v * 68);
-    const bv = Math.round(18  + v * 24);
-    ctx.fillStyle = `rgba(${rv},${gv},${bv},0.50)`;
-    ctx.beginPath();
-    ctx.arc(x + dx, y + dy, sz, 0, Math.PI * 2);
-    ctx.fill();
+      const coarse = fbm(nx, ny, 3);
+      const fine   = noise2D(nx * 4, ny * 4);
+
+      const t = (coarse * 0.7 + fine * 0.3 + 1) / 2;
+      const rv = Math.round(60 + t * 58);
+      const gv = Math.round(76 + t * 72);
+      const bv = Math.round(18 + t * 28);
+
+      ctx.fillStyle = `rgb(${rv},${gv},${bv})`;
+      ctx.fillRect(px - STEP / 2, py - STEP / 2, STEP, STEP);
+    }
   }
-
-  // Fine grain stipple (dried grass stalks, stones)
-  for (let i = 0; i < 22; i++) {
-    const dx  = (hrng(q, r, i + 200) - 0.5) * 44;
-    const dy  = (hrng(q, r, i + 250) - 0.5) * 34;
-    const sz  = 0.6 + hrng(q, r, i + 300) * 1.8;
-    const dark = hrng(q, r, i + 350) < 0.55;
-    ctx.fillStyle = dark ? 'rgba(28,36,4,0.14)' : 'rgba(185,205,80,0.11)';
-    ctx.beginPath();
-    ctx.arc(x + dx, y + dy, sz, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Crop-row hint (very faint parallel lines)
-  ctx.strokeStyle = 'rgba(40,52,8,0.07)';
-  ctx.lineWidth = 0.5;
-  for (let i = -4; i <= 4; i++) {
-    ctx.beginPath();
-    ctx.moveTo(x - 26, y + i * 4.5);
-    ctx.lineTo(x + 26, y + i * 4.5);
-    ctx.stroke();
-  }
-
-  // Directional sun shading
-  ctx.fillStyle = sunGrad(ctx, x, y, 26, 0.16, 0.14);
-  ctx.fillRect(x - 26, y - 26, 52, 52);
 }
 
-// ── Hill ──────────────────────────────────────────────────────────────────────
-// Rolling Pennsylvania hillside — strong elevation shading, earth & rock tones
+// ── HILL ──────────────────────────────────────────────────────────────────────
+// Noise-gradient hillshade: overlapping soft blobs eliminate pixel grid lines.
+// Each blob is coloured by diffuse(surface_normal · sun) so it reads as real
+// topographic relief.
 
 function hillTexture(ctx, q, r) {
   const { x, y } = hexToPixel(q, r);
 
-  // Earth-color variation (loam, clay, sandy patches)
-  for (let i = 0; i < 12; i++) {
-    const dx = (hrng(q, r, i)      - 0.5) * 44;
-    const dy = (hrng(q, r, i + 50) - 0.5) * 34;
-    const sz =  6 + hrng(q, r, i + 100) * 11;
-    const v  = hrng(q, r, i + 150);
+  // Overlapping circles: step < 2*radius → smooth blending between samples
+  const STEP = 6;
+  const BLOB = STEP * 1.20;   // radius > step/2 → guaranteed overlap
+  const R    = HEX_SIZE + 4;
 
-    // Range: dark loam (#504030) → bleached sandy (#c8a870)
-    const rv = Math.round(82  + v * 78);
-    const gv = Math.round(62  + v * 60);
-    const bv = Math.round(28  + v * 42);
-    ctx.fillStyle = `rgba(${rv},${gv},${bv},0.52)`;
-    ctx.beginPath();
-    ctx.arc(x + dx, y + dy, sz, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // Sun from upper-left, slightly elevated
+  const LX = -0.48, LY = -0.56, LZ = 0.68;
+  const LLEN = Math.sqrt(LX*LX + LY*LY + LZ*LZ);
+  const lx = LX/LLEN, ly = LY/LLEN, lz = LZ/LLEN;
 
-  // Limestone/shale outcrops (light gray patches on Pennsylvania hills)
-  for (let i = 0; i < 4; i++) {
-    if (hrng(q, r, i + 700) < 0.60) {
-      const dx = (hrng(q, r, i + 710) - 0.5) * 32;
-      const dy = (hrng(q, r, i + 720) - 0.5) * 22;
-      const sz =  2.5 + hrng(q, r, i + 730) * 5;
-      ctx.fillStyle = `rgba(165,155,138,${(0.38 + hrng(q, r, i + 740) * 0.28).toFixed(2)})`;
+  // Lower frequency → larger, smoother hills; 5 octaves for detail
+  const FREQ = 0.014;
+  const EPS  = FREQ * 1.2;
+
+  for (let dy = -R; dy <= R; dy += STEP) {
+    for (let dx = -R; dx <= R; dx += STEP) {
+      const px = x + dx, py = y + dy;
+      const nx = px * FREQ, ny = py * FREQ;
+
+      const h   = fbm(nx, ny, 5);
+      const hx_ = (fbm(nx + EPS, ny, 5) - fbm(nx - EPS, ny, 5)) / (2 * EPS);
+      const hy_ = (fbm(nx, ny + EPS, 5) - fbm(nx, ny - EPS, 5)) / (2 * EPS);
+
+      const nlen   = Math.sqrt(hx_*hx_ + hy_*hy_ + 1);
+      const diffuse = Math.max(0, (-hx_/nlen)*lx + (-hy_/nlen)*ly + (1/nlen)*lz);
+
+      const elev = (h + 1) / 2;
+      let br, bg, bb;
+      if (elev > 0.60) {
+        const bt = (elev - 0.60) / 0.40;
+        br = Math.round(152 + bt * 38);
+        bg = Math.round(140 + bt * 28);
+        bb = Math.round(120 + bt * 26);
+      } else {
+        br = Math.round(120 - elev * 28);
+        bg = Math.round( 92 - elev * 20);
+        bb = Math.round( 44 - elev * 16);
+      }
+
+      const lit = 0.28 + diffuse * 0.95;
+      ctx.fillStyle = `rgba(${Math.round(Math.min(255,br*lit))},${Math.round(Math.min(255,bg*lit))},${Math.round(Math.min(255,bb*lit))},0.94)`;
       ctx.beginPath();
-      ctx.arc(x + dx, y + dy, sz, 0, Math.PI * 2);
-      ctx.fill();
-      // Shadow edge on rock
-      ctx.fillStyle = 'rgba(50,38,22,0.22)';
-      ctx.beginPath();
-      ctx.arc(x + dx + sz * 0.5, y + dy + sz * 0.5, sz * 0.7, 0, Math.PI * 2);
+      ctx.arc(px, py, BLOB, 0, Math.PI * 2);
       ctx.fill();
     }
   }
-
-  // Thin vegetation stripe near the top ridge (sun-facing slope has more grass)
-  const vegGrad = ctx.createRadialGradient(x - 8, y - 10, 0, x - 8, y - 10, 18);
-  vegGrad.addColorStop(0, 'rgba(72,88,28,0.28)');
-  vegGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = vegGrad;
-  ctx.fillRect(x - 26, y - 26, 52, 52);
-
-  // Strong directional shading — this sells the elevation
-  // Broad sunlit face (upper-left)
-  const litFace = ctx.createRadialGradient(x - 12, y - 14, 0, x, y, 28);
-  litFace.addColorStop(0, 'rgba(255,248,215,0.36)');
-  litFace.addColorStop(0.5, 'rgba(255,245,200,0.10)');
-  litFace.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = litFace;
-  ctx.fillRect(x - 26, y - 26, 52, 52);
-
-  // Deep shadow face (lower-right)
-  const shadow = ctx.createRadialGradient(x + 12, y + 14, 0, x, y, 26);
-  shadow.addColorStop(0, 'rgba(8,4,0,0.52)');
-  shadow.addColorStop(0.5, 'rgba(8,4,0,0.22)');
-  shadow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = shadow;
-  ctx.fillRect(x - 26, y - 26, 52, 52);
 }
 
-// ── Forest ────────────────────────────────────────────────────────────────────
-// Dense deciduous canopy from above — sun hitting upper-left crown, deep shadows
+// ── FOREST ────────────────────────────────────────────────────────────────────
+// Dense deciduous canopy: noise-positioned trees, drop shadow → body → sun crown
 
 function forestTexture(ctx, q, r) {
   const { x, y } = hexToPixel(q, r);
 
-  // Build tree positions deterministically
+  // Generate stable tree positions from noise iso-contours
   const trees = [];
-  for (let i = 0; i < 11; i++) {
-    trees.push({
-      dx: (hrng(q, r, i + 600) - 0.5) * 42,
-      dy: (hrng(q, r, i + 650) - 0.5) * 32,
-      sz:  4.5 + hrng(q, r, i + 700) * 5.5,
-      hue: hrng(q, r, i + 760),  // color variation
-    });
+  const STEP = 8, R = HEX_SIZE;
+  for (let dy = -R; dy <= R; dy += STEP) {
+    for (let dx = -R; dx <= R; dx += STEP) {
+      const px = x + dx, py = y + dy;
+      const v = noise2D(px * 0.11, py * 0.11);
+      if (v > 0.05) {  // controls density
+        const jx = noise2D(px * 0.3, py * 0.3) * 3;
+        const jy = noise2D(px * 0.3 + 100, py * 0.3) * 3;
+        const sz = 4.5 + ((v - 0.05) / 0.95) * 5;
+        const hue = noise2D(px * 0.05, py * 0.05);
+        trees.push({ tx: px + jx, ty: py + jy, sz, hue });
+      }
+    }
   }
 
-  // Pass 1: Drop shadows (lower-right offset)
-  trees.forEach(({ dx, dy, sz }) => {
-    ctx.fillStyle = 'rgba(4,10,2,0.72)';
+  // Drop shadows
+  trees.forEach(({ tx, ty, sz }) => {
+    ctx.fillStyle = 'rgba(3,9,1,0.68)';
     ctx.beginPath();
-    ctx.arc(x + dx + sz * 0.45, y + dy + sz * 0.45, sz * 0.90, 0, Math.PI * 2);
+    ctx.arc(tx + sz * 0.42, ty + sz * 0.42, sz * 0.88, 0, Math.PI * 2);
     ctx.fill();
   });
 
-  // Pass 2: Canopy body (dark forest green, slight color variation)
-  trees.forEach(({ dx, dy, sz, hue }) => {
-    const g = Math.round(52 + hue * 28);  // 52–80
-    const r2 = Math.round(24 + hue * 16); // 24–40
-    ctx.fillStyle = `rgba(${r2},${g},10,0.88)`;
+  // Canopy body
+  trees.forEach(({ tx, ty, sz, hue }) => {
+    const g = Math.round(50 + hue * 32);
+    const rv2 = Math.round(22 + hue * 18);
+    ctx.fillStyle = `rgba(${rv2},${g},8,0.90)`;
     ctx.beginPath();
-    ctx.arc(x + dx, y + dy, sz, 0, Math.PI * 2);
+    ctx.arc(tx, ty, sz, 0, Math.PI * 2);
     ctx.fill();
   });
 
-  // Pass 3: Sunlit crown highlight (upper-left of each canopy)
-  trees.forEach(({ dx, dy, sz, hue }) => {
-    const hlx = x + dx - sz * 0.28;
-    const hly = y + dy - sz * 0.32;
-    const hlg = ctx.createRadialGradient(hlx, hly, 0, hlx, hly, sz * 0.72);
-    const bright = Math.round(90 + hue * 55);  // 90–145 (yellow-green)
-    hlg.addColorStop(0, `rgba(${bright - 10},${bright + 20},${Math.round(bright * 0.28)},0.75)`);
-    hlg.addColorStop(0.55, `rgba(55,95,18,0.28)`);
-    hlg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = hlg;
+  // Sunlit crowns (upper-left highlight)
+  trees.forEach(({ tx, ty, sz, hue }) => {
+    const hlx = tx - sz * 0.28, hly = ty - sz * 0.30;
+    const g = ctx.createRadialGradient(hlx, hly, 0, hlx, hly, sz * 0.75);
+    const bright = Math.round(85 + hue * 60);
+    g.addColorStop(0, `rgba(${bright-8},${bright+22},${Math.round(bright*0.24)},0.78)`);
+    g.addColorStop(0.55, 'rgba(48,88,14,0.24)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(x + dx, y + dy, sz, 0, Math.PI * 2);
+    ctx.arc(tx, ty, sz, 0, Math.PI * 2);
     ctx.fill();
   });
-
-  // Overall forest shadow vignette (interior is darker)
-  const vignette = ctx.createRadialGradient(x - 6, y - 8, 4, x, y, 24);
-  vignette.addColorStop(0, 'rgba(0,0,0,0)');
-  vignette.addColorStop(1, 'rgba(2,8,1,0.28)');
-  ctx.fillStyle = vignette;
-  ctx.fillRect(x - 26, y - 26, 52, 52);
 }
 
-// ── Road ──────────────────────────────────────────────────────────────────────
-// Civil War era dirt road — worn earth, hoof & wheel tracks, dusty center
+// ── ROAD ──────────────────────────────────────────────────────────────────────
+// Neighbor-aware dirt road: channels flow toward adjacent road hexes so the
+// path reads as a continuous corridor rather than repeating per-hex bands.
 
-function roadTexture(ctx, q, r) {
+function roadTexture(ctx, q, r, terrain) {
   const { x, y } = hexToPixel(q, r);
+  const R    = HEX_SIZE + 2;
+  const STEP = 5;
 
-  // Field-like base underneath (road runs through fields)
-  for (let i = 0; i < 8; i++) {
-    const dx = (hrng(q, r, i)      - 0.5) * 46;
-    const dy = (hrng(q, r, i + 50) - 0.5) * 36;
-    const sz =  5 + hrng(q, r, i + 100) * 9;
-    const v  = hrng(q, r, i + 150);
-    const rv = Math.round(60 + v * 48);
-    const gv = Math.round(72 + v * 60);
-    const bv = Math.round(18 + v * 20);
-    ctx.fillStyle = `rgba(${rv},${gv},${bv},0.40)`;
-    ctx.beginPath();
-    ctx.arc(x + dx, y + dy, sz, 0, Math.PI * 2);
-    ctx.fill();
+  // Field base (continuous with surrounding terrain)
+  for (let dy = -R; dy <= R; dy += STEP) {
+    for (let dx = -R; dx <= R; dx += STEP) {
+      const px = x + dx, py = y + dy;
+      const t = (fbm(px * 0.018, py * 0.018, 3) + 1) / 2;
+      ctx.fillStyle = `rgb(${Math.round(60+t*55)},${Math.round(76+t*68)},${Math.round(18+t*26)})`;
+      ctx.fillRect(px - STEP/2, py - STEP/2, STEP, STEP);
+    }
   }
 
-  // Road band (soft edges — packed earth is not ruler-straight)
-  const roadGrad = ctx.createLinearGradient(x, y - 8, x, y + 8);
-  roadGrad.addColorStop(0,   'rgba(60,42,12,0.18)');
-  roadGrad.addColorStop(0.2, 'rgba(164,138,72,0.52)');
-  roadGrad.addColorStop(0.5, 'rgba(188,164,90,0.62)');
-  roadGrad.addColorStop(0.8, 'rgba(164,138,72,0.52)');
-  roadGrad.addColorStop(1,   'rgba(60,42,12,0.18)');
-  ctx.fillStyle = roadGrad;
-  ctx.fillRect(x - 26, y - 8, 52, 16);
+  // Find road neighbors (draw a channel arm toward each one)
+  const roadDirs = [];
+  for (let i = 0; i < 6; i++) {
+    if (neighborKey(q, r, i, terrain) === 'R') roadDirs.push(i);
+  }
 
-  // Wheel rut shadows (two parallel depressions)
-  ctx.fillStyle = 'rgba(38,25,6,0.28)';
-  ctx.fillRect(x - 26, y - 3, 52, 2);
-  ctx.fillRect(x - 26, y + 1, 52, 2);
+  const HALF_W = 7;  // half-width of road (px)
 
-  // Dusty / sunlit center ridge between ruts
-  ctx.fillStyle = 'rgba(218,198,140,0.22)';
-  ctx.fillRect(x - 26, y - 1, 52, 2);
+  // Draw constant-width arms toward each road neighbor.
+  // Arms start right at the hex center (no tapering) so opposing arms
+  // merge seamlessly into a continuous band through the hex.
+  roadDirs.forEach(i => {
+    const a   = EDGE_ANG[i];
+    const ex  = x + EDGE_R * Math.cos(a);
+    const ey  = y + EDGE_R * Math.sin(a);
+    const dx2 = ex - x, dy2 = ey - y;
+    const len = Math.sqrt(dx2*dx2 + dy2*dy2);
+    const px2 = -dy2/len, py2 = dx2/len;  // unit perp
 
-  // Overall sun shading on road
-  ctx.fillStyle = sunGrad(ctx, x, y, 22, 0.10, 0.08);
-  ctx.fillRect(x - 26, y - 10, 52, 20);
+    // Gradient perpendicular to road direction
+    const rg = ctx.createLinearGradient(
+      x + px2*HALF_W, y + py2*HALF_W,
+      x - px2*HALF_W, y - py2*HALF_W
+    );
+    rg.addColorStop(0,   'rgba(52,34,8,0.18)');
+    rg.addColorStop(0.2, 'rgba(162,134,68,0.72)');
+    rg.addColorStop(0.5, 'rgba(188,162,88,0.82)');
+    rg.addColorStop(0.8, 'rgba(162,134,68,0.72)');
+    rg.addColorStop(1,   'rgba(52,34,8,0.18)');
+    ctx.fillStyle = rg;
+
+    // Constant-width rectangle from center to edge midpoint
+    ctx.beginPath();
+    ctx.moveTo(x  + px2*HALF_W, y  + py2*HALF_W);
+    ctx.lineTo(ex + px2*HALF_W, ey + py2*HALF_W);
+    ctx.lineTo(ex - px2*HALF_W, ey - py2*HALF_W);
+    ctx.lineTo(x  - px2*HALF_W, y  - py2*HALF_W);
+    ctx.closePath();
+    ctx.fill();
+
+    // Wheel ruts (two thin dark lines along the arm)
+    ctx.strokeStyle = 'rgba(36,22,4,0.30)';
+    ctx.lineWidth = 1.4;
+    [0.38, -0.38].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(x  + px2*HALF_W*s, y  + py2*HALF_W*s);
+      ctx.lineTo(ex + px2*HALF_W*s, ey + py2*HALF_W*s);
+      ctx.stroke();
+    });
+  });
+
+  // For isolated road hexes (no road neighbors) draw a small pad
+  if (roadDirs.length === 0) {
+    ctx.fillStyle = 'rgba(178,154,80,0.75)';
+    ctx.beginPath(); ctx.arc(x, y, HALF_W, 0, Math.PI*2); ctx.fill();
+  }
 }
 
-// ── Town ──────────────────────────────────────────────────────────────────────
-// Small 1860s Pennsylvania town from above — rooftops, streets, yards
+// ── TOWN ──────────────────────────────────────────────────────────────────────
+// 1860s Pennsylvania town — rooftops, streets, a few yards
 
 function townTexture(ctx, q, r) {
   const { x, y } = hexToPixel(q, r);
 
-  // Ground surface (packed earth / stone street grid)
-  // Slightly lighter than open field — more urban surface
-  ctx.fillStyle = 'rgba(72,62,50,0.30)';
+  // Ground surface (packed earth + stone street)
+  ctx.fillStyle = 'rgba(68,58,46,0.32)';
   ctx.fillRect(x - 26, y - 26, 52, 52);
 
-  // Building footprints (top-down = just the flat roof)
   const blds = [
-    { bx: -13, by: -11, bw: 8,  bh: 7,  roof: 0 },
-    { bx: -3,  by: -12, bw: 7,  bh: 6,  roof: 2 },
-    { bx:  5,  by: -10, bw: 9,  bh: 7,  roof: 1 },
-    { bx: -12, by:  1,  bw: 6,  bh: 6,  roof: 3 },
-    { bx: -4,  by:  2,  bw: 8,  bh: 6,  roof: 0 },
-    { bx:  5,  by:  3,  bw: 7,  bh: 5,  roof: 2 },
+    { bx:-13, by:-11, bw: 8, bh: 7, roof:0 },
+    { bx: -3, by:-12, bw: 7, bh: 6, roof:2 },
+    { bx:  5, by:-10, bw: 9, bh: 7, roof:1 },
+    { bx:-12, by:  1, bw: 6, bh: 6, roof:3 },
+    { bx: -4, by:  2, bw: 8, bh: 6, roof:0 },
+    { bx:  5, by:  3, bw: 7, bh: 5, roof:2 },
   ];
-
-  // Roof colors: slate gray, red-brown brick, tan limestone, dark wood
-  const roofFill  = ['rgba(95,88,80,0.88)', 'rgba(135,82,52,0.85)', 'rgba(158,140,108,0.82)', 'rgba(72,60,48,0.88)'];
-  const roofShad  = 'rgba(0,0,0,0.32)';
-  const roofLight = 'rgba(255,255,255,0.13)';
+  const fills = ['rgba(90,84,76,0.90)','rgba(132,78,50,0.88)','rgba(154,136,104,0.84)','rgba(68,56,44,0.90)'];
 
   blds.forEach(({ bx, by, bw, bh, roof }) => {
     const rx = x + bx, ry = y + by;
-
-    // Roof fill
-    ctx.fillStyle = roofFill[roof];
+    ctx.fillStyle = fills[roof];
     ctx.fillRect(rx, ry, bw, bh);
-
-    // Shadow strips (lower + right edges — buildings have height)
-    ctx.fillStyle = roofShad;
-    ctx.fillRect(rx + bw - 2, ry, 2, bh);  // right shadow
-    ctx.fillRect(rx, ry + bh - 2, bw, 2);  // bottom shadow
-
-    // Highlight strips (upper + left edges — catching sunlight)
-    ctx.fillStyle = roofLight;
-    ctx.fillRect(rx, ry, bw, 1.2);         // top highlight
-    ctx.fillRect(rx, ry, 1.2, bh);         // left highlight
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.fillRect(rx + bw - 2, ry, 2, bh);
+    ctx.fillRect(rx, ry + bh - 2, bw, 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(rx, ry, bw, 1.2);
+    ctx.fillRect(rx, ry, 1.2, bh);
   });
 
-  // Small garden/yard (green patch in the gaps)
-  ctx.fillStyle = 'rgba(42,62,18,0.60)';
-  ctx.beginPath();
-  ctx.ellipse(x + 10, y - 2, 3.5, 2.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(x - 6, y + 10, 2.5, 2, 0.4, 0, Math.PI * 2);
-  ctx.fill();
+  // Garden patches
+  ctx.fillStyle = 'rgba(38,58,16,0.62)';
+  ctx.beginPath(); ctx.ellipse(x + 10, y - 2, 3.5, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x - 6,  y + 11, 2.5, 2.0, 0.4, 0, Math.PI*2); ctx.fill();
 
-  // Subtle overall sun shading
-  ctx.fillStyle = sunGrad(ctx, x, y, 24, 0.10, 0.12);
-  ctx.fillRect(x - 26, y - 26, 52, 52);
+  // Sun shading
+  const sg = ctx.createRadialGradient(x-9, y-11, 1, x+6, y+7, 26);
+  sg.addColorStop(0, 'rgba(255,248,210,0.10)');
+  sg.addColorStop(1, 'rgba(8,4,0,0.14)');
+  ctx.fillStyle = sg;
+  ctx.fillRect(x-26, y-26, 52, 52);
 }
 
-// ── Water ─────────────────────────────────────────────────────────────────────
-// River/creek from above — deep blue-green with sun glint and gentle current
+// ── WATER ─────────────────────────────────────────────────────────────────────
+// Connected river: detect water neighbors, draw channels + hub; noise ripples
 
-function waterTexture(ctx, q, r) {
+function waterTexture(ctx, q, r, terrain) {
   const { x, y } = hexToPixel(q, r);
 
-  // Depth variation bands (darker in the channel, lighter at banks)
+  // Find which of 6 neighbors are also water
+  const waterDirs = [];
   for (let i = 0; i < 6; i++) {
-    const oy = -10 + i * 4;
-    const depth = (i === 0 || i === 5) ? 0.18 : (i === 1 || i === 4) ? 0.10 : 0.06;
-    ctx.fillStyle = `rgba(12,28,52,${depth})`;
-    ctx.fillRect(x - 26, y + oy, 52, 4);
+    if (neighborKey(q, r, i, terrain) === 'W') waterDirs.push(i);
   }
 
-  // Gentle current ripples (bezier waves, subtle)
-  const ripplesAlpha = [0.42, 0.28, 0.34];
-  for (let i = -1; i <= 1; i++) {
-    const oy = i * 5.5;
-    ctx.strokeStyle = `rgba(120,180,235,${ripplesAlpha[i + 1]})`;
-    ctx.lineWidth = i === 0 ? 1.0 : 0.7;
+  // ── Fill the "river shape" ────────────────────────────────────────────────
+  // Build a clipping path that covers hub + all channels, then fill with water
+
+  const HUB_R = waterDirs.length === 0 ? EDGE_R * 0.65 : EDGE_R * 0.58;
+  const CHAN_W = 14; // channel width at the edge midpoint (px)
+
+  ctx.beginPath();
+  ctx.arc(x, y, HUB_R, 0, Math.PI * 2);
+  ctx.fill(); // filled below with water colour
+
+  // Channels toward each water neighbor
+  waterDirs.forEach(i => {
+    const a   = EDGE_ANG[i];
+    const ex  = x + EDGE_R * Math.cos(a);
+    const ey  = y + EDGE_R * Math.sin(a);
+    const dx  = ex - x, dy2 = ey - y;
+    const len = Math.sqrt(dx*dx + dy2*dy2);
+    const px2 = -dy2/len, py2 = dx/len; // unit perp
+
+    // Trapezoid: width CHAN_W at edge, tapers to HUB_R * 0.7 at center
+    const hw = HUB_R * 0.60;
     ctx.beginPath();
-    ctx.moveTo(x - 22, y + oy);
-    ctx.bezierCurveTo(
-      x - 12, y + oy + 2.5,
-      x,      y + oy - 2.0,
-      x + 12, y + oy + 1.8
-    );
-    ctx.bezierCurveTo(
-      x + 16, y + oy + 2.5,
-      x + 20, y + oy + 0.5,
-      x + 22, y + oy
-    );
-    ctx.stroke();
+    ctx.moveTo(x + px2*hw,      y + py2*hw);
+    ctx.lineTo(ex + px2*CHAN_W/2, ey + py2*CHAN_W/2);
+    ctx.lineTo(ex - px2*CHAN_W/2, ey - py2*CHAN_W/2);
+    ctx.lineTo(x - px2*hw,      y - py2*hw);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // ── Paint everything filled so far with deep water ─────────────────────────
+  // (We use a second fill pass with compositing to colour the river shape)
+  // Strategy: fill the shapes above are already in base colour from constants.
+  // Now overlay water colour + texture on the whole hex (which will show through
+  // only in the hub+channels because the clip mask is the hex border).
+
+  // Deep water fill (darkens everything below to match river)
+  ctx.fillStyle = 'rgba(22,50,82,0.82)';
+  ctx.beginPath(); ctx.arc(x, y, HUB_R, 0, Math.PI*2); ctx.fill();
+  waterDirs.forEach(i => {
+    const a = EDGE_ANG[i];
+    const ex = x + EDGE_R * Math.cos(a), ey = y + EDGE_R * Math.sin(a);
+    const dx = ex - x, dy2 = ey - y;
+    const len = Math.sqrt(dx*dx + dy2*dy2);
+    const px2 = -dy2/len, py2 = dx/len;
+    const hw = HUB_R * 0.60;
+    ctx.beginPath();
+    ctx.moveTo(x + px2*hw, y + py2*hw);
+    ctx.lineTo(ex + px2*CHAN_W/2, ey + py2*CHAN_W/2);
+    ctx.lineTo(ex - px2*CHAN_W/2, ey - py2*CHAN_W/2);
+    ctx.lineTo(x - px2*hw, y - py2*hw);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // ── Noise-based ripple texture ─────────────────────────────────────────────
+  // Sample noise in the hub area and draw subtle colour variation
+  const STEP = 4;
+  for (let dy = -HUB_R; dy <= HUB_R; dy += STEP) {
+    for (let dx = -HUB_R; dx <= HUB_R; dx += STEP) {
+      if (dx*dx + dy*dy > HUB_R*HUB_R) continue;
+      const px2 = x + dx, py2 = y + dy;
+      const n = noise2D(px2 * 0.08, py2 * 0.08);
+      const t = (n + 1) / 2;
+      // Ripple: slight lighter/darker bands
+      const rv = Math.round(28 + t * 22);
+      const gv = Math.round(60 + t * 28);
+      const bv = Math.round(110 + t * 35);
+      ctx.fillStyle = `rgba(${rv},${gv},${bv},0.38)`;
+      ctx.fillRect(px2 - STEP/2, py2 - STEP/2, STEP, STEP);
+    }
   }
 
-  // Sun glint (specular highlight, upper-left)
-  const glint = ctx.createRadialGradient(x - 8, y - 6, 0, x - 8, y - 6, 12);
-  glint.addColorStop(0,   'rgba(210,238,255,0.58)');
-  glint.addColorStop(0.35, 'rgba(175,220,255,0.24)');
-  glint.addColorStop(1,   'rgba(0,0,0,0)');
+  // Sun glint (specular, upper-left of hub)
+  const glint = ctx.createRadialGradient(x - HUB_R*0.35, y - HUB_R*0.30, 0, x, y, HUB_R);
+  glint.addColorStop(0,    'rgba(195,232,255,0.60)');
+  glint.addColorStop(0.30, 'rgba(160,214,252,0.20)');
+  glint.addColorStop(1,    'rgba(0,0,0,0)');
   ctx.fillStyle = glint;
-  ctx.fillRect(x - 22, y - 18, 28, 28);
+  ctx.beginPath(); ctx.arc(x, y, HUB_R, 0, Math.PI*2); ctx.fill();
 
-  // Deep channel center (darker blue)
-  const deep = ctx.createRadialGradient(x + 2, y + 2, 2, x + 2, y + 2, 18);
-  deep.addColorStop(0, 'rgba(8,18,40,0.28)');
-  deep.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = deep;
-  ctx.fillRect(x - 24, y - 20, 48, 40);
+  // Flow ripple lines along each channel direction
+  waterDirs.forEach(i => {
+    const a   = EDGE_ANG[i];
+    const cos = Math.cos(a), sin = Math.sin(a);
+    const perp = a + Math.PI / 2;
+    const pc = Math.cos(perp), ps = Math.sin(perp);
+
+    for (let offset = -3; offset <= 3; offset += 3) {
+      const bx2 = x + pc * offset, by2 = y + ps * offset;
+      const dist = EDGE_R * 0.85;
+      ctx.strokeStyle = `rgba(140,194,248,${offset === 0 ? 0.50 : 0.28})`;
+      ctx.lineWidth = offset === 0 ? 1.1 : 0.7;
+      ctx.beginPath();
+      ctx.moveTo(bx2, by2);
+      ctx.bezierCurveTo(
+        bx2 + cos * dist * 0.35 + pc * noise2D(bx2*0.1, by2*0.1) * 3,
+        by2 + sin * dist * 0.35 + ps * noise2D(bx2*0.1+9, by2*0.1) * 3,
+        bx2 + cos * dist * 0.70,
+        by2 + sin * dist * 0.70,
+        bx2 + cos * dist,
+        by2 + sin * dist
+      );
+      ctx.stroke();
+    }
+  });
+
+  // For isolated ponds (no water neighbors): concentric ripple rings
+  if (waterDirs.length === 0) {
+    for (let rr = 4; rr < HUB_R; rr += 5) {
+      ctx.strokeStyle = `rgba(120,184,240,${0.35 - rr/HUB_R * 0.20})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI*2); ctx.stroke();
+    }
+  }
 }
