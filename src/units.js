@@ -1,147 +1,277 @@
-import { HEX_SIZE, COLORS, UNIT_TYPES } from './constants.js';
+import { HEX_SIZE, COLORS } from './constants.js';
 import { hexToPixel } from './hex.js';
 
-const CW = HEX_SIZE * 1.35;
-const CH = HEX_SIZE * 1.1;
+const U = { uniform: '#1a478f', hat: '#0c2558' };  // Union blue
+const C = { uniform: '#6e6347', hat: '#443f2c' };  // Confederate gray
+
+const SKIN   = '#c8925a';
+const GUN    = '#1a0e04';
+const HORSE  = '#5a3c24';
+const CANNON = '#322a1a';
 
 export function drawUnit(ctx, unit, isSelected, isActive, alpha = 1) {
   const { x, y } = hexToPixel(unit.q, unit.r);
-  const cx = x - CW / 2;
-  const cy = y - CH / 2;
-
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = unit.routed ? alpha * 0.35 : alpha;
 
-  if (unit.routed) {
-    ctx.globalAlpha = alpha * 0.35;
-  }
-
-  const bg = unit.side === 'union' ? COLORS.union : COLORS.confederate;
-  const border = unit.side === 'union' ? COLORS.unionLight : COLORS.confLight;
+  const col = unit.side === 'union' ? U : C;
 
   if (isSelected) {
     ctx.shadowColor = COLORS.gold;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 14;
   }
 
-  ctx.fillStyle = bg;
-  ctx.beginPath();
-  roundRect(ctx, cx, cy, CW, CH, 3);
-  ctx.fill();
+  const gy = y + 3;  // ground level (feet of figures)
 
-  ctx.strokeStyle = isSelected ? COLORS.gold : border;
-  ctx.lineWidth = isSelected ? 2 : 1;
-  ctx.beginPath();
-  roundRect(ctx, cx, cy, CW, CH, 3);
-  ctx.stroke();
+  switch (unit.type) {
+    case 'infantry':  drawInfantry(ctx, x, gy, col);  break;
+    case 'cavalry':   drawCavalry(ctx, x, gy, col);   break;
+    case 'artillery': drawArtillery(ctx, x, gy, col); break;
+    case 'general':   drawGeneral(ctx, x, gy, col);   break;
+  }
 
   ctx.shadowBlur = 0;
 
-  const iconY = cy + CH * 0.38;
-  ctx.strokeStyle = 'white';
-  ctx.fillStyle = 'white';
-  ctx.lineWidth = 1.5;
+  // Strength + morale badge
+  const by = y + 10;
+  const mc = unit.morale > 60 ? '#44dd44' : unit.morale > 30 ? '#ffcc00' : '#ff4444';
 
-  switch (unit.type) {
-    case 'infantry':  drawInfantryIcon(ctx, x, iconY); break;
-    case 'cavalry':   drawCavalryIcon(ctx, x, iconY);  break;
-    case 'artillery': drawArtilleryIcon(ctx, x, iconY); break;
-    case 'general':   drawGeneralIcon(ctx, x, iconY);   break;
-  }
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(x - 11, by - 5, 22, 10);
 
-  const stripY = cy + CH * 0.65;
-  const moraleColor = unit.morale > 60 ? '#44dd44' : unit.morale > 30 ? '#ffcc00' : '#ff4444';
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.fillRect(cx + 1, stripY, CW - 2, CH * 0.33);
-
-  ctx.fillStyle = moraleColor;
+  ctx.fillStyle = mc;
   ctx.beginPath();
-  ctx.arc(cx + 6, stripY + CH * 0.17, 3.5, 0, Math.PI * 2);
+  ctx.arc(x - 6, by, 2.5, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = 'white';
-  ctx.font = `bold ${Math.round(HEX_SIZE * 0.45)}px monospace`;
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.round(HEX_SIZE * 0.42)}px monospace`;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  ctx.fillText(Math.ceil(unit.strength), cx + CW - 4, stripY + CH * 0.17);
+  ctx.fillText(Math.ceil(unit.strength), x + 9, by);
 
   if (isActive) {
     ctx.strokeStyle = '#ffff00';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.setLineDash([3, 2]);
-    ctx.beginPath();
-    roundRect(ctx, cx - 1, cy - 1, CW + 2, CH + 2, 4);
-    ctx.stroke();
+    ctx.strokeRect(x - 15, y - 13, 30, 26);
     ctx.setLineDash([]);
   }
 
   if ((unit.hasMoved || unit.hasAttacked) && !unit.routed) {
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.beginPath();
-    roundRect(ctx, cx, cy, CW, CH, 3);
-    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(x - 15, y - 13, 30, 26);
   }
 
   ctx.restore();
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
+// ── Individual soldier figure — feet at (cx, cy), ~12px tall ─────────────────
+function fig(ctx, cx, cy, col) {
+  cx = Math.round(cx);
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 3, 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  ctx.fillStyle = col.uniform;
+  ctx.fillRect(cx - 1, cy - 3, 2, 3);
+
+  // Body
+  ctx.fillRect(cx - 2, cy - 7, 4, 4);
+
+  // Rifle (angled up-right from right shoulder)
+  ctx.strokeStyle = GUN;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(cx + 2, cy - 6.5);
+  ctx.lineTo(cx + 5, cy - 10.5);
+  ctx.stroke();
+
+  // Head (skin tone)
+  ctx.fillStyle = SKIN;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 8.5, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Kepi hat — brim + crown
+  ctx.fillStyle = col.hat;
+  ctx.fillRect(cx - 2, cy - 10.5, 4, 1);
+  ctx.fillRect(cx - 1.5, cy - 12, 3, 1.5);
+}
+
+// ── Infantry: 3 soldiers in a loose V formation ──────────────────────────────
+function drawInfantry(ctx, cx, cy, col) {
+  fig(ctx, cx,     cy - 3, col);  // back center (depth)
+  fig(ctx, cx - 7, cy,     col);  // front left
+  fig(ctx, cx + 7, cy,     col);  // front right
+}
+
+// ── Single horse + mounted rider ─────────────────────────────────────────────
+function horseRider(ctx, cx, cy, col) {
+  cx = Math.round(cx);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 7, 1.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Four legs
+  ctx.strokeStyle = '#3a2818';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, cy - 1); ctx.lineTo(cx - 4, cy + 2);
+  ctx.moveTo(cx - 1, cy - 1); ctx.lineTo(cx - 1, cy + 2);
+  ctx.moveTo(cx + 2, cy - 1); ctx.lineTo(cx + 2, cy + 2);
+  ctx.moveTo(cx + 5, cy - 1); ctx.lineTo(cx + 5, cy + 2);
+  ctx.stroke();
+
+  // Horse body
+  ctx.fillStyle = HORSE;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 4, 6.5, 3, 0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Neck + head (facing right)
+  ctx.beginPath();
+  ctx.moveTo(cx + 5, cy - 5);
+  ctx.quadraticCurveTo(cx + 9, cy - 8, cx + 8, cy - 5);
+  ctx.quadraticCurveTo(cx + 6, cy - 3, cx + 4, cy - 2);
   ctx.closePath();
-}
+  ctx.fill();
 
-function drawInfantryIcon(ctx, cx, cy) {
-  const s = 7;
+  // Tail
+  ctx.strokeStyle = '#3a2818';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(cx - s, cy - s * 0.6);
-  ctx.lineTo(cx + s, cy + s * 0.6);
-  ctx.moveTo(cx + s, cy - s * 0.6);
-  ctx.lineTo(cx - s, cy + s * 0.6);
+  ctx.moveTo(cx - 6, cy - 4);
+  ctx.quadraticCurveTo(cx - 10, cy - 5, cx - 9, cy - 2);
+  ctx.stroke();
+
+  // Rider body
+  ctx.fillStyle = col.uniform;
+  ctx.fillRect(cx - 2, cy - 10, 4, 5);
+
+  // Rider head
+  ctx.fillStyle = SKIN;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 11.5, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Rider hat
+  ctx.fillStyle = col.hat;
+  ctx.fillRect(cx - 2, cy - 13.5, 4, 1);
+  ctx.fillRect(cx - 1.5, cy - 15, 3, 1.5);
+
+  // Saber raised
+  ctx.strokeStyle = '#c8c050';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(cx + 2, cy - 9.5);
+  ctx.lineTo(cx + 7, cy - 14);
   ctx.stroke();
 }
 
-function drawCavalryIcon(ctx, cx, cy) {
-  const s = 6;
+// ── Cavalry: 2 horse+rider pairs with depth offset ───────────────────────────
+function drawCavalry(ctx, cx, cy, col) {
+  horseRider(ctx, cx - 7, cy,     col);  // front
+  horseRider(ctx, cx + 7, cy - 2, col);  // back (slightly higher = further)
+}
+
+// ── Artillery: cannon on carriage + one crew member ──────────────────────────
+function drawArtillery(ctx, cx, cy, col) {
+  const bx = cx - 4;  // cannon barrel center
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
   ctx.beginPath();
-  ctx.moveTo(cx - s, cy - s * 0.5);
-  ctx.lineTo(cx + s, cy + s * 0.5);
-  ctx.moveTo(cx + s, cy - s * 0.5);
-  ctx.lineTo(cx - s, cy + s * 0.5);
+  ctx.ellipse(bx, cy, 10, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Rear (smaller) wheel
+  ctx.strokeStyle = '#2a2010';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(bx + 4, cy - 3, 3.5, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(cx, cy - s * 0.9, 2.5, 0, Math.PI * 2);
-  ctx.fill();
-}
 
-function drawArtilleryIcon(ctx, cx, cy) {
-  ctx.fillRect(cx - 9, cy - 3, 18, 6);
-  ctx.beginPath();
-  ctx.arc(cx - 9, cy + 5, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx + 9, cy + 5, 4, 0, Math.PI * 2);
-  ctx.fill();
-}
+  // Cannon barrel (dark iron)
+  ctx.fillStyle = CANNON;
+  ctx.fillRect(Math.round(bx) - 8, cy - 8, 14, 4);
 
-function drawGeneralIcon(ctx, cx, cy) {
-  const pts = 4;
-  const or = 8, ir = 4;
+  // Front (large) wheel with spokes
+  ctx.strokeStyle = '#2a2010';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  for (let i = 0; i < pts * 2; i++) {
-    const angle = (i * Math.PI) / pts - Math.PI / 2;
-    const r = i % 2 === 0 ? or : ir;
-    i === 0 ? ctx.moveTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle))
-            : ctx.lineTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+  ctx.arc(bx - 5, cy - 3, 5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = 0.6;
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 4;
+    ctx.beginPath();
+    ctx.moveTo(bx - 5 + Math.cos(a) * 5, cy - 3 + Math.sin(a) * 5);
+    ctx.lineTo(bx - 5 - Math.cos(a) * 5, cy - 3 - Math.sin(a) * 5);
+    ctx.stroke();
   }
-  ctx.closePath();
+
+  // Crew member standing to the right
+  fig(ctx, cx + 9, cy, col);
+}
+
+// ── General: single taller officer with sword + gold sash ────────────────────
+function drawGeneral(ctx, cx, cy, col) {
+  cx = Math.round(cx);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 4, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  ctx.fillStyle = col.uniform;
+  ctx.fillRect(cx - 1.5, cy - 3.5, 3, 3.5);
+
+  // Body (slightly wider than enlisted)
+  ctx.fillRect(cx - 2.5, cy - 8.5, 5, 5);
+
+  // Gold sash across chest
+  ctx.fillStyle = COLORS.gold;
+  ctx.fillRect(cx - 2.5, cy - 6.5, 5, 1.5);
+
+  // Sword raised to upper-left
+  ctx.strokeStyle = '#d8d050';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 1, cy - 7.5);
+  ctx.lineTo(cx - 6, cy - 13.5);
+  ctx.stroke();
+  // Cross-guard
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, cy - 10);
+  ctx.lineTo(cx + 1, cy - 11.5);
+  ctx.stroke();
+
+  // Head (slightly larger than enlisted)
+  ctx.fillStyle = SKIN;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 10.5, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Officer hat — taller crown than kepi
+  ctx.fillStyle = col.hat;
+  ctx.fillRect(cx - 2.5, cy - 13, 5, 1.2);  // brim
+  ctx.fillRect(cx - 2, cy - 16.5, 4, 3.5);  // tall crown
+
+  // Gold hat badge
+  ctx.fillStyle = COLORS.gold;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 15, 1.2, 0, Math.PI * 2);
   ctx.fill();
 }
 
