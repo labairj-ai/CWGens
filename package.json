@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:optiplex": "vite build --base=/",
+    "deploy": "npm run build:optiplex && rsync -av --delete dist/ optiplex@192.168.1.178:~/cwgens/",
     "preview": "vite preview"
   },
   "devDependencies": {
