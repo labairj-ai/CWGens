@@ -1,72 +1,101 @@
-import { W, H, COLORS, PANEL_TOP, UNIT_TYPES, S } from './constants.js';
+import { W, H, COLORS, PANEL_TOP, PANEL_H, HUD_H, UNIT_TYPES, S } from './constants.js';
 
 const FONT_TITLE = 'bold 13px serif';
 const FONT_BODY  = '11px sans-serif';
 const FONT_SMALL = '10px sans-serif';
 
+const BUILD_LABEL = (() => {
+  if (typeof __BUILD_TIME__ === 'undefined') return '';
+  const d = new Date(__BUILD_TIME__);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const mo  = months[d.getUTCMonth()];
+  const day = d.getUTCDate();
+  const yr  = d.getUTCFullYear();
+  const hh  = String(d.getUTCHours()).padStart(2, '0');
+  const mm  = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${mo} ${day}, ${yr} · ${hh}:${mm} UTC`;
+})();
+
 export function drawHUD(ctx, game) {
-  const unionMorale  = getArmyMorale(game.units, 'union');
-  const confMorale   = getArmyMorale(game.units, 'confederate');
-  const unionStart   = game.startMorale?.union  || 1;
-  const confStart    = game.startMorale?.confederate || 1;
-  const unionPct  = unionMorale / unionStart;
-  const confPct   = confMorale  / confStart;
+  const unionMorale = getArmyMorale(game.units, 'union');
+  const confMorale  = getArmyMorale(game.units, 'confederate');
+  const unionPct    = unionMorale / (game.startMorale?.union  || 1);
+  const confPct     = confMorale  / (game.startMorale?.confederate || 1);
+  const compact     = HUD_H <= 60;
 
   ctx.fillStyle = COLORS.hud;
-  ctx.fillRect(0, 0, W, 88);
-
+  ctx.fillRect(0, 0, W, HUD_H);
   ctx.strokeStyle = COLORS.hudLine;
   ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, 88);
-  ctx.lineTo(W, 88);
-  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, HUD_H); ctx.lineTo(W, HUD_H); ctx.stroke();
 
-  ctx.fillStyle = '#a08050';
-  ctx.font = 'bold 16px serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText('BATTLE OF GETTYSBURG', W / 2, 6);
+  const dayNum    = Math.floor((game.turn - 1) / 6) + 1;
+  const timeOfDay = game.nightTimer > 0 ? 'Night'
+    : ['Morning','Midday','Afternoon'][Math.floor(((game.turn - 1) % 6) / 2)] || 'Afternoon';
 
-  const dayNum = Math.floor((game.turn - 1) / 6) + 1;
-  const timeOfDay = game.nightTimer > 0 ? 'Night' : ['Morning','Midday','Afternoon'][Math.floor(((game.turn - 1) % 6) / 2)] || 'Afternoon';
-  ctx.fillStyle = '#7a6040';
-  ctx.font = FONT_BODY;
-  ctx.fillText(`July ${dayNum + 0}, 1863  •  ${timeOfDay}  •  Turn ${game.turn}`, W / 2, 26);
+  if (compact) {
+    // ── Compact HUD (mobile landscape) ──────────────────────────────────────
+    ctx.fillStyle = '#a08050';
+    ctx.font = 'bold 11px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('BATTLE OF GETTYSBURG', W / 2, 3);
 
-  drawMoraleBar(ctx, 20, 48, 'UNION', unionPct, COLORS.union, COLORS.unionLight, game.playerSide === 'union');
-  drawMoraleBar(ctx, W / 2 + 10, 48, 'CONFEDERATE', confPct, COLORS.confederate, COLORS.confLight, game.playerSide === 'confederate');
+    ctx.fillStyle = '#7a6040';
+    ctx.font = '9px sans-serif';
+    ctx.fillText(`July ${dayNum}, 1863 • ${timeOfDay} • Turn ${game.turn}`, W / 2, 16);
 
-  ctx.fillStyle = '#504030';
-  ctx.font = FONT_SMALL;
-  ctx.textAlign = 'right';
-  ctx.fillText(`v${typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__.slice(0, 10) : ''}`, W - 4, 4);
+    const barW = Math.min(200, W * 0.23);
+    drawMoraleBar(ctx, 8,          26, 'UNION', unionPct,
+      COLORS.union, COLORS.unionLight, game.playerSide === 'union', barW, 10, 8);
+    drawMoraleBar(ctx, W / 2 + 4,  26, 'CONF.', confPct,
+      COLORS.confederate, COLORS.confLight, game.playerSide === 'confederate', barW, 10, 8);
+  } else {
+    // ── Full HUD (desktop / tablet) ──────────────────────────────────────────
+    ctx.fillStyle = '#a08050';
+    ctx.font = 'bold 16px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('BATTLE OF GETTYSBURG', W / 2, 6);
+
+    ctx.fillStyle = '#7a6040';
+    ctx.font = FONT_BODY;
+    ctx.fillText(`July ${dayNum}, 1863  •  ${timeOfDay}  •  Turn ${game.turn}`, W / 2, 26);
+
+    const barW = Math.min(200, W * 0.22);
+    drawMoraleBar(ctx, 20,         48, 'UNION', unionPct,
+      COLORS.union, COLORS.unionLight, game.playerSide === 'union', barW, 14, 10);
+    drawMoraleBar(ctx, W / 2 + 10, 48, 'CONFEDERATE', confPct,
+      COLORS.confederate, COLORS.confLight, game.playerSide === 'confederate', barW, 14, 10);
+
+    ctx.fillStyle = '#504030';
+    ctx.font = FONT_SMALL;
+    ctx.textAlign = 'right';
+    ctx.fillText(`v${typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__.slice(0, 10) : ''}`, W - 4, 4);
+  }
 }
 
-function drawMoraleBar(ctx, x, y, label, pct, bg, fg, isPlayer) {
-  const barW = 200, barH = 14;
+function drawMoraleBar(ctx, x, y, label, pct, bg, fg, isPlayer, barW, barH, labelSize) {
   ctx.fillStyle = isPlayer ? '#f0c060' : '#706040';
-  ctx.font = 'bold 10px sans-serif';
+  ctx.font = `bold ${labelSize}px sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText(label, x, y);
 
   ctx.fillStyle = '#0a0800';
-  ctx.fillRect(x, y + 14, barW, barH);
+  ctx.fillRect(x, y + labelSize + 2, barW, barH);
 
   const filled = Math.max(0, Math.min(1, pct)) * barW;
-  const barColor = pct > 0.5 ? '#3aaa3a' : pct > 0.28 ? '#aaaa20' : '#cc3030';
-  ctx.fillStyle = barColor;
-  ctx.fillRect(x, y + 14, filled, barH);
+  ctx.fillStyle = pct > 0.5 ? '#3aaa3a' : pct > 0.28 ? '#aaaa20' : '#cc3030';
+  ctx.fillRect(x, y + labelSize + 2, filled, barH);
 
-  ctx.strokeStyle = '#504030';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x, y + 14, barW, barH);
+  ctx.strokeStyle = '#504030'; ctx.lineWidth = 1;
+  ctx.strokeRect(x, y + labelSize + 2, barW, barH);
 
   ctx.fillStyle = 'white';
-  ctx.font = FONT_SMALL;
+  ctx.font = `${Math.round(labelSize * 0.85)}px sans-serif`;
   ctx.textAlign = 'right';
-  ctx.fillText(`${Math.min(100, Math.round(pct * 100))}%`, x + barW - 2, y + 16);
+  ctx.fillText(`${Math.min(100, Math.round(pct * 100))}%`, x + barW - 2, y + labelSize + 3);
 }
 
 export function drawBottomPanel(ctx, game) {
@@ -86,7 +115,7 @@ export function drawBottomPanel(ctx, game) {
     ctx.font = 'bold 14px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('ENEMY MOVING...', W / 2, PANEL_TOP + 55);
+    ctx.fillText('ENEMY MOVING...', W / 2, PANEL_TOP + (PANEL_H >> 1));
     return;
   }
 
@@ -95,75 +124,106 @@ export function drawBottomPanel(ctx, game) {
     ctx.font = 'bold 14px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('NIGHT — Units Recovering', W / 2, PANEL_TOP + 55);
+    ctx.fillText('NIGHT — Units Recovering', W / 2, PANEL_TOP + (PANEL_H >> 1));
     return;
   }
 
+  const compact = PANEL_H <= 85;
+
   if (sel) {
-    drawUnitIdentity(ctx, sel);
-    drawStatBars(ctx, sel);
-    drawLeaderPanel(ctx, sel);
+    drawUnitIdentity(ctx, sel, compact);
+    drawStatBars(ctx, sel, compact);
+    if (!compact) drawLeaderPanel(ctx, sel);
   } else {
     ctx.fillStyle = '#504030';
     ctx.font = FONT_BODY;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Click a unit to select it', 12, PANEL_TOP + 55);
+    ctx.fillText('Select a unit', 12, PANEL_TOP + (PANEL_H >> 1));
   }
 
   drawActionButtons(ctx, game);
 }
 
-function drawUnitIdentity(ctx, unit) {
+function drawUnitIdentity(ctx, unit, compact) {
   const x = 8;
   const sideColor = unit.side === 'union' ? COLORS.unionLight : COLORS.confLight;
-
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-
-  ctx.fillStyle = sideColor;
-  ctx.font = 'bold 12px serif';
-  ctx.fillText(unit.name, x, PANEL_TOP + 5);
-
-  ctx.fillStyle = '#907860';
-  ctx.font = 'italic 10px serif';
-  ctx.fillText(unit.commander || '', x, PANEL_TOP + 20);
-
-  ctx.fillStyle = '#706040';
-  ctx.font = '9px sans-serif';
-  const typeName = UNIT_TYPES[unit.type]?.name || unit.type;
-  ctx.fillText(`${typeName} • ${unit.side === 'union' ? 'Union' : 'Confederate'}`, x, PANEL_TOP + 33);
-
+  const typeName  = UNIT_TYPES[unit.type]?.name || unit.type;
+  const maxStr    = unit.maxStrength || unit.strength;
+  const casualtyPct = Math.round((1 - unit.strength / maxStr) * 100);
   const cond = unit.org > 75 ? { label: 'FRESH',     color: '#44cc44' }
              : unit.org > 50 ? { label: 'STEADY',    color: '#88cc44' }
              : unit.org > 25 ? { label: 'TIRED',     color: '#cc8822' }
              :                  { label: 'EXHAUSTED', color: '#cc3333' };
-  ctx.fillStyle = cond.color;
-  ctx.font = 'bold 9px sans-serif';
-  ctx.fillText(cond.label, x, PANEL_TOP + 46);
+  const moraleLabel = unit.morale > 70 ? 'Confident' : unit.morale > 40 ? 'Determined'
+                    : unit.morale > 20 ? 'Wavering'  : 'Near Rout';
+  const moraleColor = unit.morale > 70 ? '#44cc44' : unit.morale > 40 ? '#cccc44'
+                    : unit.morale > 20 ? '#cc8844'  : '#cc3333';
 
-  if (unit.dugIn) {
-    ctx.fillStyle = '#8a9040';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  if (compact) {
+    // 4 tight lines in 80px panel
+    ctx.fillStyle = sideColor;
+    ctx.font = 'bold 11px serif';
+    ctx.fillText(unit.name, x, PANEL_TOP + 4);
+
+    ctx.fillStyle = '#907860';
+    ctx.font = 'italic 9px serif';
+    ctx.fillText(unit.commander || '', x, PANEL_TOP + 17);
+
+    ctx.fillStyle = '#706040';
+    ctx.font = '9px sans-serif';
+    ctx.fillText(`${typeName} • ${unit.side === 'union' ? 'Union' : 'Conf.'}`, x, PANEL_TOP + 29);
+
+    ctx.fillStyle = cond.color;
+    ctx.font = 'bold 8px sans-serif';
+    ctx.fillText(cond.label + (unit.dugIn ? ' • DUG IN' : ''), x, PANEL_TOP + 41);
+
+    ctx.fillStyle = '#706050';
+    ctx.font = '8px monospace';
+    ctx.fillText(`${Math.ceil(unit.strength)}/${maxStr} (-${casualtyPct}%)`, x, PANEL_TOP + 54);
+
+    ctx.fillStyle = moraleColor;
+    ctx.font = '8px sans-serif';
+    ctx.fillText(moraleLabel, x, PANEL_TOP + 66);
+  } else {
+    ctx.fillStyle = sideColor;
+    ctx.font = 'bold 12px serif';
+    ctx.fillText(unit.name, x, PANEL_TOP + 5);
+
+    ctx.fillStyle = '#907860';
+    ctx.font = 'italic 10px serif';
+    ctx.fillText(unit.commander || '', x, PANEL_TOP + 20);
+
+    ctx.fillStyle = '#706040';
+    ctx.font = '9px sans-serif';
+    ctx.fillText(`${typeName} • ${unit.side === 'union' ? 'Union' : 'Confederate'}`, x, PANEL_TOP + 33);
+
+    ctx.fillStyle = cond.color;
     ctx.font = 'bold 9px sans-serif';
-    ctx.fillText('⊲ DUG IN', x, PANEL_TOP + 59);
+    ctx.fillText(cond.label, x, PANEL_TOP + 46);
+
+    if (unit.dugIn) {
+      ctx.fillStyle = '#8a9040';
+      ctx.fillText('⊲ DUG IN', x, PANEL_TOP + 59);
+    }
+
+    ctx.fillStyle = '#706050';
+    ctx.font = '9px monospace';
+    ctx.fillText(`Str: ${Math.ceil(unit.strength)}/${maxStr}  (-${casualtyPct}%)`, x, PANEL_TOP + 72);
+
+    ctx.fillStyle = moraleColor;
+    ctx.font = '9px sans-serif';
+    ctx.fillText(moraleLabel, x, PANEL_TOP + 85);
   }
-
-  const maxStr = unit.maxStrength || unit.strength;
-  const casualtyPct = Math.round((1 - unit.strength / maxStr) * 100);
-  ctx.fillStyle = '#706050';
-  ctx.font = '9px monospace';
-  ctx.fillText(`Str: ${Math.ceil(unit.strength)}/${maxStr}  (-${casualtyPct}%)`, x, PANEL_TOP + 72);
-
-  const moraleLabel = unit.morale > 70 ? 'Confident' : unit.morale > 40 ? 'Determined' : unit.morale > 20 ? 'Wavering' : 'Near Rout';
-  const moraleColor = unit.morale > 70 ? '#44cc44' : unit.morale > 40 ? '#cccc44' : unit.morale > 20 ? '#cc8844' : '#cc3333';
-  ctx.fillStyle = moraleColor;
-  ctx.font = '9px sans-serif';
-  ctx.fillText(moraleLabel, x, PANEL_TOP + 85);
 }
 
-function drawStatBars(ctx, unit) {
-  const bx = 196;
-  const bw = 150;
+function drawStatBars(ctx, unit, compact) {
+  const bx = compact ? Math.round(W * 0.26) : 196;
+  const bw = compact ? Math.round(W * 0.28) : 150;
+  const rowH = compact ? 18 : 25;
 
   const bars = [
     { label: 'MORALE', pct: unit.morale / 100, color: unit.morale > 60 ? '#44cc44' : unit.morale > 30 ? '#cccc22' : '#cc3333', val: String(Math.round(unit.morale)) },
@@ -173,7 +233,7 @@ function drawStatBars(ctx, unit) {
   ];
 
   bars.forEach(({ label, pct, color, val }, i) => {
-    const y = PANEL_TOP + 5 + i * 25;
+    const y = PANEL_TOP + 5 + i * rowH;
     ctx.fillStyle = '#604030';
     ctx.font = '9px monospace';
     ctx.textAlign = 'left';
@@ -248,14 +308,21 @@ function getButtonRects(game) {
   const btns = getButtons(game);
   if (!btns.length) return [];
 
-  const bw = 80, bh = 22, gap = 5, maxPerRow = 3, rightEdge = W - 8;
+  const compact  = PANEL_H <= 85;
+  const bw       = compact ? 80 : 80;
+  const bh       = compact ? 28 : 22;
+  const gap      = 5;
+  const rowGap   = compact ? 6 : 9;
+  const maxPerRow = 3;
+  const rightEdge = W - 8;
+
   const result = [];
   for (let i = 0; i < btns.length; i += maxPerRow) {
     const row = btns.slice(i, Math.min(i + maxPerRow, btns.length));
-    const ri = Math.floor(i / maxPerRow);
+    const ri  = Math.floor(i / maxPerRow);
     const rowW = row.length * bw + (row.length - 1) * gap;
     const rowX = rightEdge - rowW;
-    const rowY = PANEL_TOP + 8 + ri * (bh + gap + 4);
+    const rowY = PANEL_TOP + 6 + ri * (bh + rowGap);
     row.forEach((btn, ci) => {
       result.push({ btn, x: rowX + ci * (bw + gap), y: rowY, w: bw, h: bh });
     });
@@ -360,70 +427,160 @@ function drawMenuOverlay(ctx, game) {
   ctx.fillText('July 1-3, 1863 • Gettysburg, Pennsylvania', W / 2, H / 2 + 70);
   ctx.fillText('Lead Union or Confederate forces in the pivotal battle', W / 2, H / 2 + 84);
   ctx.fillText('that decided the fate of the Confederacy', W / 2, H / 2 + 98);
+
+  if (BUILD_LABEL) {
+    ctx.fillStyle = '#6a5a38';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`v ${BUILD_LABEL}`, W / 2, H - 8);
+  }
+}
+
+function getSideSelectLayout() {
+  const compact = H < 520;
+  const pad = 8;
+  if (compact) {
+    const headerH = 52;
+    const cardY   = headerH + pad / 2;
+    const cardH   = H - cardY - pad;
+    const cardW   = Math.floor((W - pad * 3) / 2);
+    const leftX   = pad;
+    const rightX  = pad * 2 + cardW;
+    const btnH    = 40;
+    const btnW    = cardW - pad * 2;
+    const btnY    = cardY + cardH - btnH - pad;
+    return { compact, headerH, cardY, cardH, cardW, leftX, rightX, btnH, btnW, btnY,
+             unionBtnX: leftX + pad, confBtnX: rightX + pad };
+  } else {
+    const cardW  = Math.min(310, Math.floor((W - 60) / 2 - 10));
+    const leftX  = Math.floor(W / 2 - cardW - 20);
+    const rightX = Math.floor(W / 2 + 20);
+    const cardY  = Math.min(150, Math.floor(H * 0.25));
+    const cardH  = Math.min(260, Math.floor(H * 0.55));
+    const btnH   = 36;
+    const btnW   = cardW - 30;
+    const btnY   = cardY + cardH - btnH - 14;
+    return { compact, cardW, leftX, rightX, cardY, cardH, btnH, btnW, btnY,
+             unionBtnX: leftX + 15, confBtnX: rightX + 15 };
+  }
 }
 
 function drawSideSelectOverlay(ctx, game) {
-  ctx.fillStyle = 'rgba(10,8,0,0.96)';
+  ctx.fillStyle = 'rgba(10,8,0,0.97)';
   ctx.fillRect(0, 0, W, H);
 
+  const l = getSideSelectLayout();
+
+  // Header
   ctx.fillStyle = '#c8a850';
-  ctx.font = 'bold 24px serif';
+  ctx.font = `bold ${l.compact ? 17 : 24}px serif`;
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('CHOOSE YOUR SIDE', W / 2, 80);
+  ctx.textBaseline = 'top';
+  ctx.fillText('CHOOSE YOUR SIDE', W / 2, l.compact ? 5 : H * 0.12);
 
   ctx.fillStyle = '#806838';
-  ctx.font = '13px serif';
-  ctx.fillText('Battle of Gettysburg  •  July 1-3, 1863', W / 2, 108);
+  ctx.font = `${l.compact ? 10 : 13}px serif`;
+  ctx.fillText('Battle of Gettysburg  •  July 1-3, 1863', W / 2, l.compact ? 25 : H * 0.12 + 28);
 
+  // Union card
   ctx.fillStyle = COLORS.union;
-  ctx.fillRect(80, 150, 310, 260);
   ctx.strokeStyle = COLORS.unionLight;
   ctx.lineWidth = 2;
-  ctx.strokeRect(80, 150, 310, 260);
+  ctx.beginPath();
+  ctx.roundRect(l.leftX, l.cardY, l.cardW, l.cardH, 6);
+  ctx.fill(); ctx.stroke();
 
-  ctx.fillStyle = COLORS.confederate;
-  ctx.fillRect(510, 150, 310, 260);
+  // Confederate card — dark brown so button stands out
+  ctx.fillStyle = '#2a1a0a';
   ctx.strokeStyle = COLORS.confLight;
   ctx.lineWidth = 2;
-  ctx.strokeRect(510, 150, 310, 260);
+  ctx.beginPath();
+  ctx.roundRect(l.rightX, l.cardY, l.cardW, l.cardH, 6);
+  ctx.fill(); ctx.stroke();
 
-  ctx.fillStyle = '#aaccff';
-  ctx.font = 'bold 20px serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('UNION', 235, 185);
-  ctx.fillStyle = '#dde8ff';
-  ctx.font = '11px serif';
-  ctx.fillText('Army of the Potomac', 235, 205);
-  ctx.fillText('General George Meade', 235, 220);
+  const lcx = l.leftX  + l.cardW / 2;
+  const rcx = l.rightX + l.cardW / 2;
 
-  ctx.fillStyle = '#ddd8aa';
-  ctx.font = 'bold 20px serif';
-  ctx.fillText('CONFEDERATE', 665, 185);
-  ctx.fillStyle = '#eee8cc';
-  ctx.font = '11px serif';
-  ctx.fillText('Army of Northern Virginia', 665, 205);
-  ctx.fillText('General Robert E. Lee', 665, 220);
+  if (l.compact) {
+    const ty = l.cardY + 10;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'center';
 
-  const uUnits = ['Howard\'s Corps', 'Reynolds\' Corps', 'Hancock\'s Corps', 'Sickles\' Corps', 'Sedgwick\'s Corps', 'Buford\'s Cavalry', 'Artillery Reserve', 'Gen. Meade'];
-  const cUnits = ['Rodes\' Division', 'Heth\'s Division', 'McLaws\' Division', 'Hood\'s Division', 'Early\'s Division', 'Stuart\'s Cavalry', 'Long. Artillery', 'Gen. R.E. Lee'];
+    ctx.fillStyle = '#aaccff';
+    ctx.font = 'bold 14px serif';
+    ctx.fillText('UNION', lcx, ty);
+    ctx.fillStyle = '#cce0ff';
+    ctx.font = '10px serif';
+    ctx.fillText('Army of the Potomac', lcx, ty + 18);
+    ctx.fillText('Gen. George Meade', lcx, ty + 31);
 
-  ctx.fillStyle = '#8899bb';
-  ctx.font = '10px sans-serif';
-  ctx.textAlign = 'left';
-  uUnits.forEach((u, i) => ctx.fillText('• ' + u, 95, 242 + i * 14));
+    ctx.fillStyle = '#7799cc';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'left';
+    ["Howard's Corps", "Reynolds' Corps", "Hancock's Corps", "Buford's Cavalry"].forEach(
+      (u, i) => ctx.fillText('• ' + u, l.leftX + 6, ty + 50 + i * 13)
+    );
 
-  ctx.fillStyle = '#bba888';
-  ctx.textAlign = 'left';
-  cUnits.forEach((u, i) => ctx.fillText('• ' + u, 525, 242 + i * 14));
+    ctx.fillStyle = '#ddd8aa';
+    ctx.font = 'bold 14px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CONFEDERATE', rcx, ty);
+    ctx.fillStyle = '#eee8cc';
+    ctx.font = '10px serif';
+    ctx.fillText('Army of N. Virginia', rcx, ty + 18);
+    ctx.fillText('Gen. Robert E. Lee', rcx, ty + 31);
 
-  drawButton(ctx, 110, 386, 250, 36, 'PLAY AS UNION', false);
-  drawButton(ctx, 540, 386, 250, 36, 'PLAY AS CONFEDERATE', false);
+    ctx.fillStyle = '#b8a070';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'left';
+    ["Rodes' Division", "Heth's Division", "Stuart's Cavalry", "Gen. R.E. Lee"].forEach(
+      (u, i) => ctx.fillText('• ' + u, l.rightX + 6, ty + 50 + i * 13)
+    );
 
-  ctx.fillStyle = '#504030';
-  ctx.font = FONT_SMALL;
-  ctx.textAlign = 'center';
-  ctx.fillText('Victory: Break enemy morale below 28%. Morale drops through combat losses and routs.', W / 2, H - 30);
+    drawButton(ctx, l.unionBtnX, l.btnY, l.btnW, l.btnH, 'PLAY AS UNION', false);
+    drawButton(ctx, l.confBtnX,  l.btnY, l.btnW, l.btnH, 'CONFEDERATE',   false);
+  } else {
+    const ty = l.cardY + 30;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'center';
+
+    ctx.fillStyle = '#aaccff';
+    ctx.font = 'bold 20px serif';
+    ctx.fillText('UNION', lcx, ty);
+    ctx.fillStyle = '#dde8ff';
+    ctx.font = '11px serif';
+    ctx.fillText('Army of the Potomac', lcx, ty + 24);
+    ctx.fillText('General George Meade', lcx, ty + 38);
+
+    ctx.fillStyle = '#ddd8aa';
+    ctx.font = 'bold 20px serif';
+    ctx.fillText('CONFEDERATE', rcx, ty);
+    ctx.fillStyle = '#eee8cc';
+    ctx.font = '11px serif';
+    ctx.fillText('Army of Northern Virginia', rcx, ty + 24);
+    ctx.fillText('General Robert E. Lee', rcx, ty + 38);
+
+    const uUnits = ["Howard's Corps","Reynolds' Corps","Hancock's Corps","Sickles' Corps",
+                    "Sedgwick's Corps","Buford's Cavalry","Artillery Reserve","Gen. Meade"];
+    const cUnits = ["Rodes' Division","Heth's Division","McLaws' Division","Hood's Division",
+                    "Early's Division","Stuart's Cavalry","Long. Artillery","Gen. R.E. Lee"];
+
+    ctx.fillStyle = '#8899bb';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    uUnits.forEach((u, i) => ctx.fillText('• ' + u, l.leftX + 14, l.cardY + 86 + i * 14));
+    ctx.fillStyle = '#bba888';
+    cUnits.forEach((u, i) => ctx.fillText('• ' + u, l.rightX + 14, l.cardY + 86 + i * 14));
+
+    drawButton(ctx, l.unionBtnX, l.btnY, l.btnW, l.btnH, 'PLAY AS UNION',        false);
+    drawButton(ctx, l.confBtnX,  l.btnY, l.btnW, l.btnH, 'PLAY AS CONFEDERATE',  false);
+
+    ctx.fillStyle = '#504030';
+    ctx.font = FONT_SMALL;
+    ctx.textAlign = 'center';
+    ctx.fillText('Victory: Break enemy morale below 28%. Morale drops through combat losses and routs.', W / 2, H - 30);
+  }
 }
 
 function drawEndOverlay(ctx, game, isVictory) {
@@ -525,8 +682,15 @@ export function getMenuButtonAt(px, py, game) {
     if (px >= bx && px <= bx + bw && py >= by && py <= by + bh) return 'play';
   }
   if (game.state === S.SIDE_SELECT) {
-    if (px >= 110 && px <= 360 && py >= 386 && py <= 422) return 'union';
-    if (px >= 540 && px <= 790 && py >= 386 && py <= 422) return 'confederate';
+    const l = getSideSelectLayout();
+    if (l.compact) {
+      // Entire card is the tap target on mobile
+      if (px >= l.leftX  && px <= l.leftX  + l.cardW && py >= l.cardY && py <= l.cardY + l.cardH) return 'union';
+      if (px >= l.rightX && px <= l.rightX + l.cardW && py >= l.cardY && py <= l.cardY + l.cardH) return 'confederate';
+    } else {
+      if (px >= l.unionBtnX && px <= l.unionBtnX + l.btnW && py >= l.btnY && py <= l.btnY + l.btnH) return 'union';
+      if (px >= l.confBtnX  && px <= l.confBtnX  + l.btnW && py >= l.btnY && py <= l.btnY + l.btnH) return 'confederate';
+    }
   }
   if (game.state === S.VICTORY || game.state === S.DEFEAT) {
     const bx = W / 2 - 100, by = H / 2 + 60, bw = 200, bh = 40;
