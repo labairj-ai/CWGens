@@ -5,7 +5,8 @@ import {
   DIG_IN_COVER, REINFORCEMENTS, HUD_H, PANEL_TOP,
 } from './constants.js';
 import {
-  getMovableHexes, getAttackableTargets, hexDistance, getNeighbors, pixelToHex
+  getMovableHexes, getAttackableTargets, getHexesInAttackRange,
+  hexDistance, getNeighbors, pixelToHex
 } from './hex.js';
 import { drawAllTerrain, drawHighlights, drawFlashEffects, drawWaterAnimations } from './terrain.js';
 import { drawAllUnits } from './units.js';
@@ -39,6 +40,7 @@ export class Game {
     this.combatMsg = null;
     this.attackMode = false;
     this.chargeMode = false;
+    this.rangeHexes = [];
   }
 
   startBattle(playerSide) {
@@ -111,7 +113,7 @@ export class Game {
       ctx.translate(panX, panY);
       drawAllTerrain(ctx, this.terrain);
       drawWaterAnimations(ctx, this.terrain, now);
-      drawHighlights(ctx, this.moveHexes, this.attackTargets, this.selectedUnit);
+      drawHighlights(ctx, this.moveHexes, this.attackTargets, this.selectedUnit, this.rangeHexes);
       const visible = this.playerSide ? getVisibleHexes(this.units, this.playerSide) : null;
       drawAllUnits(ctx, this.units, this.selectedUnit, this.aiActiveUnit, visible, this.playerSide);
       drawFlashEffects(ctx, this.effects, now);
@@ -236,6 +238,10 @@ export class Game {
     } else {
       this.attackTargets = [];
     }
+
+    this.rangeHexes = (!unit.hasAttacked && unit._typeDef.attackRange > 1)
+      ? getHexesInAttackRange(unit, this.units)
+      : [];
   }
 
   moveUnit(unit, q, r) {
@@ -247,6 +253,9 @@ export class Game {
 
     if (!unit.hasAttacked && unit.ammo > 0) {
       this.attackTargets = getAttackableTargets(unit, this.units, this.terrain);
+    }
+    if (!unit.hasAttacked && unit._typeDef.attackRange > 1) {
+      this.rangeHexes = getHexesInAttackRange(unit, this.units);
     }
     this.moveHexes = [];
 
@@ -336,6 +345,7 @@ export class Game {
   retreatUnit(unit) {
     const neighbors = getNeighbors(unit.q, unit.r);
     const safe = neighbors.filter(h => {
+      if (this.terrain[h.r][h.q] === 'W') return false;
       const occ = this.units.find(u => u.q === h.q && u.r === h.r && !u.routed);
       return !occ || occ.side === unit.side;
     });
@@ -358,6 +368,7 @@ export class Game {
     this.selectedUnit = null;
     this.moveHexes = [];
     this.attackTargets = [];
+    this.rangeHexes = [];
     this.attackMode = false;
     this.chargeMode = false;
   }

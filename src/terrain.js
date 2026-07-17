@@ -61,7 +61,12 @@ export function drawAllTerrain(ctx, terrain) {
   ctx.drawImage(terrainCache, 0, 0);
 }
 
-export function drawHighlights(ctx, moveHexes, attackTargets, selectedUnit) {
+export function drawHighlights(ctx, moveHexes, attackTargets, selectedUnit, rangeHexes = []) {
+  for (const h of rangeHexes) {
+    drawHexPath(ctx, h.q, h.r);
+    ctx.fillStyle = 'rgba(220,100,20,0.10)';  ctx.fill();
+    ctx.strokeStyle = 'rgba(220,100,20,0.32)'; ctx.lineWidth = 1; ctx.stroke();
+  }
   for (const h of moveHexes) {
     drawHexPath(ctx, h.q, h.r);
     ctx.fillStyle = 'rgba(40,90,220,0.28)';  ctx.fill();

@@ -38,12 +38,14 @@ export function drawUnit(ctx, unit, isSelected, isActive, alpha = 1) {
   }
 
   const gy = y + 3;
+  const sizeRatio = unit.maxStrength ? unit.strength / unit.maxStrength : 1;
+  const size = sizeRatio > 0.60 ? 3 : sizeRatio > 0.30 ? 2 : 1;
 
   switch (unit.type) {
-    case 'infantry':  drawInfantry(ctx, x, gy, col);  break;
-    case 'cavalry':   drawCavalry(ctx, x, gy, col);   break;
-    case 'artillery': drawArtillery(ctx, x, gy, col); break;
-    case 'general':   drawGeneral(ctx, x, gy, col);   break;
+    case 'infantry':  drawInfantry(ctx, x, gy, col, size);  break;
+    case 'cavalry':   drawCavalry(ctx, x, gy, col, size);   break;
+    case 'artillery': drawArtillery(ctx, x, gy, col, size); break;
+    case 'general':   drawGeneral(ctx, x, gy, col);          break;
   }
 
   ctx.shadowBlur = 0;
@@ -156,11 +158,18 @@ function fig(ctx, cx, cy, col) {
   ctx.fillRect(cx - 0.5, cy - 12.6, 1.1, 1.1);
 }
 
-// ── Infantry: 3 soldiers V formation ─────────────────────────────────────────
-function drawInfantry(ctx, cx, cy, col) {
-  fig(ctx, cx,     cy - 3, col);
-  fig(ctx, cx - 7, cy,     col);
-  fig(ctx, cx + 7, cy,     col);
+// ── Infantry: 3/2/1 soldiers based on unit strength ──────────────────────────
+function drawInfantry(ctx, cx, cy, col, size = 3) {
+  if (size >= 3) {
+    fig(ctx, cx,     cy - 3, col);
+    fig(ctx, cx - 7, cy,     col);
+    fig(ctx, cx + 7, cy,     col);
+  } else if (size === 2) {
+    fig(ctx, cx - 5, cy, col);
+    fig(ctx, cx + 5, cy, col);
+  } else {
+    fig(ctx, cx, cy, col);
+  }
 }
 
 // ── Horse + mounted rider (shared by cavalry + general) ───────────────────────
@@ -290,14 +299,18 @@ function horseRider(ctx, cx, cy, col, horseColor, showSaber) {
   }
 }
 
-// ── Cavalry: front rider saber up, rear rider carbine ────────────────────────
-function drawCavalry(ctx, cx, cy, col) {
-  horseRider(ctx, cx + 6, cy - 2, col, HORSE, false);  // rear — carbine
-  horseRider(ctx, cx - 7, cy,     col, HORSE, true);   // front — saber
+// ── Cavalry: 2 riders for full/medium strength, 1 for small ──────────────────
+function drawCavalry(ctx, cx, cy, col, size = 3) {
+  if (size >= 2) {
+    horseRider(ctx, cx + 6, cy - 2, col, HORSE, false);  // rear — carbine
+    horseRider(ctx, cx - 7, cy,     col, HORSE, true);   // front — saber
+  } else {
+    horseRider(ctx, cx - 2, cy, col, HORSE, true);
+  }
 }
 
-// ── Artillery: tapered cannon + two crew ─────────────────────────────────────
-function drawArtillery(ctx, cx, cy, col) {
+// ── Artillery: cannon + 0-2 crew based on unit strength ──────────────────────
+function drawArtillery(ctx, cx, cy, col, size = 3) {
   // Ground shadow
   ctx.fillStyle = 'rgba(0,0,0,0.20)';
   ctx.beginPath();
@@ -370,9 +383,14 @@ function drawArtillery(ctx, cx, cy, col) {
   ctx.fillStyle = '#1a1005';
   ctx.beginPath(); ctx.arc(cx + 8, cy - 7, 1.5, 0, Math.PI * 2); ctx.fill();
 
-  // Crew — gunner left of trail, loader right of rear wheel
-  fig(ctx, cx - 14, cy, col);
-  fig(ctx, cx + 11, cy, col);
+  // Crew — shown based on unit strength
+  if (size >= 3) {
+    fig(ctx, cx - 14, cy, col);  // gunner
+    fig(ctx, cx + 11, cy, col);  // loader
+  } else if (size === 2) {
+    fig(ctx, cx - 14, cy, col);  // gunner only
+  }
+  // size === 1: crew fled, cannon abandoned
 }
 
 // ── General: mounted on horse, gold epaulettes + sash, tall hat ──────────────
