@@ -1,5 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
-import { HEX_SIZE, TERRAIN, W, H } from './constants.js';
+import { HEX_SIZE, TERRAIN, W, H, MAP_Y, ROWS } from './constants.js';
 import { hexToPixel, drawHexPath } from './hex.js';
 
 // ── Noise setup ───────────────────────────────────────────────────────────────
@@ -36,7 +36,6 @@ const DIRS_EVEN = [[0,-1],[1,-1],[1,0],[0,1],[-1,0],[-1,-1]];
 const DIRS_ODD  = [[0,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]];
 // Corresponding edge midpoint angles (canvas coords, same for both parities)
 const EDGE_ANG  = [270,330,30,90,150,210].map(d => d * Math.PI / 180);
-const EDGE_R    = HEX_SIZE * S3 / 2;   // center → edge-midpoint distance
 
 // Subtle topographic grid line
 const HEX_BORDER = 'rgba(22,14,4,0.28)';
@@ -49,9 +48,11 @@ export function invalidateTerrainCache() { terrainCache = null; }
 
 export function drawAllTerrain(ctx, terrain) {
   if (!terrainCache) {
+    // Cache must be tall enough to hold the full hex grid even when it exceeds viewport H
+    const cacheH = Math.ceil(MAP_Y + HEX_SIZE * S3 * (ROWS + 0.5)) + 4;
     terrainCache = document.createElement('canvas');
     terrainCache.width  = W;
-    terrainCache.height = H;
+    terrainCache.height = Math.max(H, cacheH);
     const off = terrainCache.getContext('2d');
     for (let r = 0; r < terrain.length; r++)
       for (let q = 0; q < terrain[r].length; q++)
@@ -137,6 +138,7 @@ function neighborKey(q, r, dirIdx, terrain) {
 function blendEdges(ctx, q, r, key, terrain) {
   if (key === 'W' || key === 'R') return;
   const { x, y } = hexToPixel(q, r);
+  const EDGE_R = HEX_SIZE * S3 / 2;
   const BLEND_R = EDGE_R * 0.62;
 
   for (let i = 0; i < 6; i++) {
@@ -289,10 +291,13 @@ function hillTexture(ctx, q, r) {
 
 function forestTexture(ctx, q, r) {
   const { x, y } = hexToPixel(q, r);
+  const scl = HEX_SIZE / 24;
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(scl, scl); ctx.translate(-x, -y);
 
   // Generate stable tree positions from noise iso-contours
   const trees = [];
-  const STEP = 8, R = HEX_SIZE;
+  const STEP = 8, R = 24;
   for (let dy = -R; dy <= R; dy += STEP) {
     for (let dx = -R; dx <= R; dx += STEP) {
       const px = x + dx, py = y + dy;
@@ -338,6 +343,7 @@ function forestTexture(ctx, q, r) {
     ctx.arc(tx, ty, sz, 0, Math.PI * 2);
     ctx.fill();
   });
+  ctx.restore();
 }
 
 // ── ROAD ──────────────────────────────────────────────────────────────────────
@@ -346,8 +352,9 @@ function forestTexture(ctx, q, r) {
 
 function roadTexture(ctx, q, r, terrain) {
   const { x, y } = hexToPixel(q, r);
-  const R    = HEX_SIZE + 2;
-  const STEP = 5;
+  const R      = HEX_SIZE + 2;
+  const STEP   = 5;
+  const EDGE_R = HEX_SIZE * S3 / 2;
 
   // Field base (continuous with surrounding terrain)
   for (let dy = -R; dy <= R; dy += STEP) {
@@ -365,7 +372,7 @@ function roadTexture(ctx, q, r, terrain) {
     if (neighborKey(q, r, i, terrain) === 'R') roadDirs.push(i);
   }
 
-  const HALF_W = 7;  // half-width of road (px)
+  const HALF_W = Math.max(3, Math.round(7 * HEX_SIZE / 24));
 
   // Draw constant-width arms toward each road neighbor.
   // Arms start right at the hex center (no tapering) so opposing arms
@@ -422,6 +429,9 @@ function roadTexture(ctx, q, r, terrain) {
 
 function townTexture(ctx, q, r) {
   const { x, y } = hexToPixel(q, r);
+  const scl = HEX_SIZE / 24;
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(scl, scl); ctx.translate(-x, -y);
 
   // Ground surface (packed earth + stone street)
   ctx.fillStyle = 'rgba(68,58,46,0.32)';
@@ -460,6 +470,7 @@ function townTexture(ctx, q, r) {
   sg.addColorStop(1, 'rgba(8,4,0,0.14)');
   ctx.fillStyle = sg;
   ctx.fillRect(x-26, y-26, 52, 52);
+  ctx.restore();
 }
 
 // ── WATER ─────────────────────────────────────────────────────────────────────
@@ -467,6 +478,7 @@ function townTexture(ctx, q, r) {
 
 function waterTexture(ctx, q, r, terrain) {
   const { x, y } = hexToPixel(q, r);
+  const EDGE_R = HEX_SIZE * S3 / 2;
 
   // Find which of 6 neighbors are also water
   const waterDirs = [];

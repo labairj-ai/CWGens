@@ -12,8 +12,12 @@ const CANNON  = '#322a1a';
 
 export function drawUnit(ctx, unit, isSelected, isActive, alpha = 1) {
   const { x, y } = hexToPixel(unit.q, unit.r);
+  const s = HEX_SIZE / 24;
   ctx.save();
   ctx.globalAlpha = unit.routed ? alpha * 0.35 : alpha;
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.translate(-x, -y);
 
   const col = unit.side === 'union' ? U : C;
 
@@ -65,7 +69,7 @@ export function drawUnit(ctx, unit, isSelected, isActive, alpha = 1) {
   ctx.fill();
 
   ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.round(HEX_SIZE * 0.42)}px monospace`;
+  ctx.font = 'bold 10px monospace';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   ctx.fillText(Math.ceil(unit.strength), x + 9, by);
@@ -511,9 +515,12 @@ function drawGeneral(ctx, cx, cy, col) {
   ctx.stroke();
 }
 
-export function drawAllUnits(ctx, units, selectedUnit, aiActiveUnit) {
+export function drawAllUnits(ctx, units, selectedUnit, aiActiveUnit, visibleHexes, playerSide) {
   for (const unit of units) {
     if (unit.routed) continue;
+    if (visibleHexes && playerSide && unit.side !== playerSide) {
+      if (!visibleHexes.has(`${unit.q},${unit.r}`)) continue;
+    }
     const isSelected = selectedUnit && selectedUnit.id === unit.id;
     const isActive   = aiActiveUnit && aiActiveUnit.id === unit.id;
     drawUnit(ctx, unit, isSelected, isActive);

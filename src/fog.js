@@ -25,9 +25,9 @@ function calcVisible(units, playerSide) {
   return visible;
 }
 
-export function drawFog(ctx, terrain, units, playerSide) {
+export function drawFog(ctx, terrain, units, playerSide, visible) {
   if (!playerSide) return;
-  const visible = calcVisible(units, playerSide);
+  if (!visible) visible = calcVisible(units, playerSide);
 
   for (let r = 0; r < terrain.length; r++) {
     for (let q = 0; q < terrain[r].length; q++) {

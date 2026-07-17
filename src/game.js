@@ -2,14 +2,14 @@ import {
   S, GETTYSBURG_TERRAIN, GETTYSBURG_UNITS, UNIT_TYPES,
   TERRAIN, MORALE_ROUT_THRESHOLD, MORALE_RETREAT_THRESHOLD,
   VICTORY_MORALE_PCT, TURNS_PER_DAY, MAX_TURNS,
-  DIG_IN_COVER, REINFORCEMENTS,
+  DIG_IN_COVER, REINFORCEMENTS, HUD_H, PANEL_TOP,
 } from './constants.js';
 import {
   getMovableHexes, getAttackableTargets, hexDistance, getNeighbors, pixelToHex
 } from './hex.js';
 import { drawAllTerrain, drawHighlights, drawFlashEffects, drawWaterAnimations } from './terrain.js';
 import { drawAllUnits } from './units.js';
-import { drawFog } from './fog.js';
+import { drawFog, getVisibleHexes } from './fog.js';
 import { buildAIActions } from './ai.js';
 import {
   drawHUD, drawBottomPanel, drawOverlay, getButtonAt, getMenuButtonAt, getArmyMorale
@@ -104,24 +104,29 @@ export class Game {
     }
   }
 
-  draw(ctx) {
+  draw(ctx, panX = 0, panY = 0) {
     if (this.terrain) {
       const now = performance.now();
+      ctx.save();
+      ctx.translate(panX, panY);
       drawAllTerrain(ctx, this.terrain);
       drawWaterAnimations(ctx, this.terrain, now);
       drawHighlights(ctx, this.moveHexes, this.attackTargets, this.selectedUnit);
-      drawAllUnits(ctx, this.units, this.selectedUnit, this.aiActiveUnit);
+      const visible = this.playerSide ? getVisibleHexes(this.units, this.playerSide) : null;
+      drawAllUnits(ctx, this.units, this.selectedUnit, this.aiActiveUnit, visible, this.playerSide);
       drawFlashEffects(ctx, this.effects, now);
-      drawFog(ctx, this.terrain, this.units, this.playerSide);
+      drawFog(ctx, this.terrain, this.units, this.playerSide, visible);
+      ctx.restore();
     }
     drawHUD(ctx, this);
     drawBottomPanel(ctx, this);
     drawOverlay(ctx, this);
   }
 
-  handleClick(gx, gy) {
+  handleClick(gx, gy, panX = 0, panY = 0) {
     if (this.nightTimer > 0) return;
 
+    // Menu overlays and HUD/panel buttons use raw canvas coords (no pan)
     const menuBtn = getMenuButtonAt(gx, gy, this);
     if (menuBtn) {
       if (menuBtn === 'play') { this.state = S.SIDE_SELECT; return; }
@@ -138,7 +143,8 @@ export class Game {
       return;
     }
 
-    this.handleMapClick(gx, gy);
+    // Pass raw screen coords + pan so handleMapClick can check bounds in screen space
+    this.handleMapClick(gx, gy, panX, panY);
   }
 
   handleButtonClick(id) {
@@ -167,8 +173,11 @@ export class Game {
     }
   }
 
-  handleMapClick(gx, gy) {
-    const hex = pixelToHex(gx, gy);
+  handleMapClick(gx, gy, panX = 0, panY = 0) {
+    // Bounds check uses raw screen coords (HUD and panel are fixed, not panned)
+    if (gy < HUD_H || gy > PANEL_TOP) return;
+    // Hex lookup uses pan-adjusted coordinates to match where the map is drawn
+    const hex = pixelToHex(gx - panX, gy - panY);
     if (!hex) return;
 
     const clickedUnit = this.units.find(u => u.q === hex.q && u.r === hex.r && !u.routed);
