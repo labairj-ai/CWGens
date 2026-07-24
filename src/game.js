@@ -19,6 +19,7 @@ import {
   playMusket, playCannon, playBugle, playDrum,
   playRetreat, playVictory, playDefeat, playNight
 } from './sounds.js';
+import { startMusic, stopMusic } from './music.js';
 
 export class Game {
   constructor() {
@@ -72,6 +73,7 @@ export class Game {
     this.combatMsg = null;
     this.state = S.PLAYER_TURN;
     playDrum();
+    startMusic();
   }
 
   update(dt) {
@@ -134,7 +136,7 @@ export class Game {
       if (menuBtn === 'play') { this.state = S.SIDE_SELECT; return; }
       if (menuBtn === 'union') { this.startBattle('union'); return; }
       if (menuBtn === 'confederate') { this.startBattle('confederate'); return; }
-      if (menuBtn === 'again') { this.state = S.MENU; return; }
+      if (menuBtn === 'again') { stopMusic(); this.state = S.MENU; return; }
     }
 
     if (this.state !== S.PLAYER_TURN) return;
@@ -476,9 +478,11 @@ export class Game {
     const confPct = confMorale / (this.startMorale?.confederate || 1);
 
     if (confPct < VICTORY_MORALE_PCT) {
+      stopMusic();
       this.state = this.playerSide === 'union' ? S.VICTORY : S.DEFEAT;
       this.playerSide === 'union' ? playVictory() : playDefeat();
     } else if (unionPct < VICTORY_MORALE_PCT) {
+      stopMusic();
       this.state = this.playerSide === 'confederate' ? S.VICTORY : S.DEFEAT;
       this.playerSide === 'confederate' ? playVictory() : playDefeat();
     }
@@ -489,6 +493,7 @@ export class Game {
     const confMorale = getArmyMorale(this.units, 'confederate');
     const playerSideMorale = this.playerSide === 'union' ? unionMorale : confMorale;
     const enemySideMorale = this.playerSide === 'union' ? confMorale : unionMorale;
+    stopMusic();
     if (playerSideMorale >= enemySideMorale) {
       this.state = S.VICTORY;
       playVictory();
