@@ -199,14 +199,16 @@ export function stopMusic() {
   if (!_running) return;
   _running = false;
   clearTimeout(_loopTimer);
-  if (_master && _ctx) {
+  // Capture refs now so a fast restartMusic() can't clobber them before the timeout fires.
+  const send = _send, reverb = _reverb, master = _master;
+  _master = _send = _reverb = null;
+  if (master && _ctx) {
     const t = _ctx.currentTime;
-    _master.gain.cancelScheduledValues(t);
-    _master.gain.setValueAtTime(_master.gain.value, t);
-    _master.gain.linearRampToValueAtTime(0, t + 2.5);
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(master.gain.value, t);
+    master.gain.linearRampToValueAtTime(0, t + 2.5);
     setTimeout(() => {
-      try { _send.disconnect(); _reverb.disconnect(); _master.disconnect(); } catch (_) {}
-      _master = _send = _reverb = null;
+      try { send.disconnect(); reverb.disconnect(); master.disconnect(); } catch (_) {}
     }, 3000);
   }
 }

@@ -241,7 +241,7 @@ export class Game {
       this.attackTargets = [];
     }
 
-    this.rangeHexes = (!unit.hasAttacked && unit._typeDef.attackRange > 1)
+    this.rangeHexes = (!unit.hasAttacked && unit.ammo > 0 && unit._typeDef.attackRange > 1)
       ? getHexesInAttackRange(unit, this.units)
       : [];
   }
@@ -257,7 +257,7 @@ export class Game {
     if (!unit.hasAttacked && unit.ammo > 0) {
       this.attackTargets = getAttackableTargets(unit, this.units, this.terrain);
     }
-    if (!unit.hasAttacked && unit._typeDef.attackRange > 1) {
+    if (!unit.hasAttacked && unit.ammo > 0 && unit._typeDef.attackRange > 1) {
       this.rangeHexes = getHexesInAttackRange(unit, this.units);
     }
     this.moveHexes = [];
@@ -415,6 +415,7 @@ export class Game {
     if (this.state === S.ENEMY_TURN) {
       if (this.turn % TURNS_PER_DAY === 0 && this.turn < MAX_TURNS) {
         this.nightTimer = 2.5;
+        this.state = S.NIGHT;
         playNight();
       } else if (this.turn >= MAX_TURNS) {
         this.resolveTimeLimit();

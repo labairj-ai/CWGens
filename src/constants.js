@@ -5,8 +5,8 @@ export const COLS = 16;
 export const ROWS = 9;
 
 const S3 = Math.sqrt(3);
-const HUD_H = 88;
-const PANEL_H = 110;
+export const HUD_H = 88;
+export const PANEL_H = 110;
 const MAP_AREA_H = H - HUD_H - PANEL_H;
 const GRID_W = HEX_SIZE * (2 + 1.5 * (COLS - 1));
 const GRID_H = HEX_SIZE * S3 * ROWS;
