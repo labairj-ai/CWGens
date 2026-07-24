@@ -245,6 +245,7 @@ export class Game {
   }
 
   moveUnit(unit, q, r) {
+    if (this.units.some(u => u.q === q && u.r === r && !u.routed && u.id !== unit.id)) return;
     unit.q = q;
     unit.r = r;
     unit.hasMoved = true;
@@ -347,7 +348,7 @@ export class Game {
     const safe = neighbors.filter(h => {
       if (this.terrain[h.r][h.q] === 'W') return false;
       const occ = this.units.find(u => u.q === h.q && u.r === h.r && !u.routed);
-      return !occ || occ.side === unit.side;
+      return !occ;
     });
 
     const enemySide = unit.side === 'union' ? 'confederate' : 'union';
