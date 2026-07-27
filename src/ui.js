@@ -431,7 +431,7 @@ function drawMenuOverlay(ctx, game) {
 
   ctx.fillStyle = '#504030';
   ctx.font = FONT_SMALL;
-  ctx.fillText(`${BATTLES.length} historical battles — Bull Run, Shiloh, Antietam, Gettysburg`, W / 2, H / 2 + 70);
+  ctx.fillText(`${BATTLES.length} historical battles — Bull Run · Shiloh · Antietam · Gettysburg · Chancellorsville · Chickamauga · Spotsylvania · Franklin`, W / 2, H / 2 + 70);
   ctx.fillText('Command Union or Confederate forces in each engagement', W / 2, H / 2 + 84);
   ctx.fillText('Break the enemy\'s morale to claim victory', W / 2, H / 2 + 98);
 
@@ -446,13 +446,18 @@ function drawMenuOverlay(ctx, game) {
 
 function getBattleSelectLayout() {
   const compact = H < 520;
-  const cardW   = Math.min(460, W - 24);
-  const cardH   = compact ? 48 : 64;
-  const gap     = compact ? 7 : 12;
-  const x       = Math.floor((W - cardW) / 2);
-  const totalH  = BATTLES.length * cardH + (BATTLES.length - 1) * gap;
-  const y0      = Math.max(compact ? 40 : 90, Math.floor((H - totalH) / 2));
-  return { compact, cardW, cardH, gap, x, y0 };
+  const cols    = 2;
+  const gapX    = compact ? 8 : 12;
+  const gap     = compact ? 7 : 10;
+  const maxW    = Math.min(W * 0.9, 940);
+  const cardW   = Math.floor((maxW - gapX) / cols);
+  const cardH   = compact ? 52 : 68;
+  const x       = Math.floor((W - (cols * cardW + gapX)) / 2);
+  const rows    = Math.ceil(BATTLES.length / cols);
+  const totalH  = rows * cardH + (rows - 1) * gap;
+  const headerH = compact ? 38 : 82;
+  const y0      = Math.max(headerH, Math.floor((H - totalH) / 2));
+  return { compact, cols, cardW, cardH, gap, gapX, x, y0 };
 }
 
 function drawBattleSelectOverlay(ctx, game) {
@@ -467,37 +472,45 @@ function drawBattleSelectOverlay(ctx, game) {
   ctx.fillText('CHOOSE YOUR BATTLE', W / 2, l.compact ? 6 : 30);
 
   BATTLES.forEach((battle, i) => {
-    const y = l.y0 + i * (l.cardH + l.gap);
+    const col = i % l.cols;
+    const row = Math.floor(i / l.cols);
+    const cx  = l.x + col * (l.cardW + l.gapX);
+    const y   = l.y0 + row * (l.cardH + l.gap);
+
     ctx.fillStyle = '#241708';
     ctx.strokeStyle = '#806040';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.roundRect(l.x, y, l.cardW, l.cardH, 6);
+    ctx.roundRect(cx, y, l.cardW, l.cardH, 6);
     ctx.fill();
     ctx.stroke();
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillStyle = '#e0c070';
-    ctx.font = `bold ${l.compact ? 12 : 15}px serif`;
-    ctx.fillText(battle.name, l.x + 14, y + (l.compact ? 6 : 9));
+    ctx.font = `bold ${l.compact ? 11 : 14}px serif`;
+    ctx.fillText(battle.name, cx + 10, y + (l.compact ? 6 : 8));
 
     ctx.fillStyle = '#907850';
-    ctx.font = `${l.compact ? 9 : 11}px serif`;
-    ctx.fillText(`${battle.dateLabel}  •  ${battle.place}`, l.x + 14, y + (l.compact ? 24 : 30));
+    ctx.font = `${l.compact ? 8 : 10}px serif`;
+    ctx.fillText(`${battle.dateLabel}`, cx + 10, y + (l.compact ? 22 : 26));
+
+    ctx.fillStyle = '#685040';
+    ctx.font = `${l.compact ? 8 : 9}px sans-serif`;
+    ctx.fillText(battle.place, cx + 10, y + (l.compact ? 34 : 38));
 
     if (!l.compact) {
-      ctx.fillStyle = '#605038';
-      ctx.font = '10px sans-serif';
-      const blurb = battle.blurb.length > 78 ? battle.blurb.slice(0, 75) + '…' : battle.blurb;
-      ctx.fillText(blurb, l.x + 14, y + 47);
+      ctx.fillStyle = '#504030';
+      ctx.font = '9px sans-serif';
+      const blurb = battle.blurb.length > 52 ? battle.blurb.slice(0, 49) + '…' : battle.blurb;
+      ctx.fillText(blurb, cx + 10, y + 52);
     }
 
     ctx.textAlign = 'right';
     ctx.fillStyle = '#a08040';
-    ctx.font = `bold ${l.compact ? 12 : 15}px serif`;
+    ctx.font = `bold ${l.compact ? 12 : 14}px serif`;
     ctx.textBaseline = 'middle';
-    ctx.fillText('›', l.x + l.cardW - 14, y + l.cardH / 2);
+    ctx.fillText('›', cx + l.cardW - 10, y + l.cardH / 2);
   });
 
   drawBack(ctx);
@@ -755,8 +768,11 @@ export function getMenuButtonAt(px, py, game) {
     if (px < 80 && py < 34) return 'back';
     const l = getBattleSelectLayout();
     for (let i = 0; i < BATTLES.length; i++) {
-      const y = l.y0 + i * (l.cardH + l.gap);
-      if (px >= l.x && px <= l.x + l.cardW && py >= y && py <= y + l.cardH) return `battle:${i}`;
+      const col = i % l.cols;
+      const row = Math.floor(i / l.cols);
+      const cx  = l.x + col * (l.cardW + l.gapX);
+      const cy  = l.y0 + row * (l.cardH + l.gap);
+      if (px >= cx && px <= cx + l.cardW && py >= cy && py <= cy + l.cardH) return `battle:${i}`;
     }
   }
   if (game.state === S.SIDE_SELECT) {
