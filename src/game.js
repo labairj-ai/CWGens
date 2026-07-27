@@ -305,10 +305,10 @@ export class Game {
     const atkHitOnDef = atkRoll * (isCharge ? 2.0 : 1.0) * (1 - cover);
     const atkDamageRatio = isCharge ? 1.3 : 1.0;
 
-    const moraleLossOnDef = Math.round(atkHitOnDef * 9 + 4);
-    const strengthLossOnDef = atkHitOnDef * 0.35;
-    const moraleLossOnAtk = Math.round(defHitOnAtk * 7 * atkDamageRatio);
-    const strengthLossOnAtk = defHitOnAtk * 0.2 * atkDamageRatio;
+    const moraleLossOnDef = Math.round(atkHitOnDef * 2.0);
+    const strengthLossOnDef = atkHitOnDef * 0.15;
+    const moraleLossOnAtk = Math.round(defHitOnAtk * 1.5 * atkDamageRatio);
+    const strengthLossOnAtk = defHitOnAtk * 0.10 * atkDamageRatio;
 
     defUnit.morale = Math.max(0, defUnit.morale - moraleLossOnDef);
     defUnit.strength = Math.max(0, defUnit.strength - strengthLossOnDef);
