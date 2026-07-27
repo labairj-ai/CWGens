@@ -2,7 +2,7 @@ import {
   S, GETTYSBURG_TERRAIN, GETTYSBURG_UNITS, UNIT_TYPES,
   TERRAIN, MORALE_ROUT_THRESHOLD, MORALE_RETREAT_THRESHOLD,
   VICTORY_MORALE_PCT, TURNS_PER_DAY, MAX_TURNS,
-  DIG_IN_COVER, REINFORCEMENTS, HUD_H, PANEL_TOP,
+  DIG_IN_COVER, REINFORCEMENTS, HUD_H, PANEL_TOP, W, H,
 } from './constants.js';
 import {
   getMovableHexes, getAttackableTargets, getHexesInAttackRange,
@@ -109,6 +109,10 @@ export class Game {
   }
 
   draw(ctx, panX = 0, panY = 0) {
+    // Fill map background before terrain (canvas is cleared but transparent)
+    ctx.fillStyle = '#0a0800';
+    ctx.fillRect(0, 0, W, H);
+
     if (this.terrain) {
       const now = performance.now();
       ctx.save();
@@ -178,8 +182,8 @@ export class Game {
   }
 
   handleMapClick(gx, gy, panX = 0, panY = 0) {
-    // Bounds check uses raw screen coords (HUD and panel are fixed, not panned)
-    if (gy < HUD_H || gy > PANEL_TOP) return;
+    // Ignore taps in the panel area (buttons above handle their own clicks)
+    if (gy > PANEL_TOP) return;
     // Hex lookup uses pan-adjusted coordinates to match where the map is drawn
     const hex = pixelToHex(gx - panX, gy - panY);
     if (!hex) return;

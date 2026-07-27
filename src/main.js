@@ -1,54 +1,77 @@
-import { W, H } from './constants.js';
+import { updateLayout } from './constants.js';
 import { Game } from './game.js';
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const game = new Game();
 
-let scale = 1;
-let offsetX = 0;
-let offsetY = 0;
-
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  const vp = window.visualViewport;
-  const sw = vp ? vp.width  : window.innerWidth;
-  const sh = vp ? vp.height : window.innerHeight;
-  scale = Math.min(sw / W, sh / H);
-  const displayW = W * scale;
-  const displayH = H * scale;
-  offsetX = (sw - displayW) / 2;
-  offsetY = (sh - displayH) / 2;
-  canvas.width = sw * dpr;
-  canvas.height = sh * dpr;
-  canvas.style.width = sw + 'px';
+  const vp  = window.visualViewport;
+  const sw  = vp ? vp.width  : window.innerWidth;
+  const sh  = vp ? vp.height : window.innerHeight;
+
+  updateLayout(sw, sh);
+
+  canvas.width  = Math.round(sw * dpr);
+  canvas.height = Math.round(sh * dpr);
+  canvas.style.width  = sw + 'px';
   canvas.style.height = sh + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-function screenToGame(sx, sy) {
+// ── Input ────────────────────────────────────────────────────────────────────
+
+let pointerDown = false;
+let dragStartX = 0, dragStartY = 0;
+let didDrag = false;
+
+function getXY(e) {
+  const rect = canvas.getBoundingClientRect();
+  const src  = e.touches ? e.touches[0] : e;
   return {
-    gx: (sx - offsetX) / scale,
-    gy: (sy - offsetY) / scale,
+    x: src.clientX - rect.left,
+    y: src.clientY - rect.top,
   };
 }
 
-function onPointer(e) {
+canvas.addEventListener('pointerdown', e => {
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  const src = e.touches ? e.touches[0] : e;
-  const sx = src.clientX - rect.left;
-  const sy = src.clientY - rect.top;
-  const { gx, gy } = screenToGame(sx, sy);
-  game.handleClick(gx, gy);
-}
+  pointerDown = true;
+  didDrag = false;
+  const { x, y } = getXY(e);
+  dragStartX = x;
+  dragStartY = y;
+}, { passive: false });
 
-canvas.addEventListener('pointerdown', onPointer, { passive: false });
-// visualViewport fires on mobile when address bar appears/disappears; resize covers desktop
+canvas.addEventListener('pointermove', e => {
+  if (!pointerDown) return;
+  e.preventDefault();
+  const { x, y } = getXY(e);
+  if (Math.abs(x - dragStartX) > 6 || Math.abs(y - dragStartY) > 6) {
+    didDrag = true;
+  }
+}, { passive: false });
+
+canvas.addEventListener('pointerup', e => {
+  e.preventDefault();
+  if (!pointerDown) return;
+  pointerDown = false;
+  if (!didDrag) {
+    const { x, y } = getXY(e);
+    game.handleClick(x, y);
+  }
+  didDrag = false;
+}, { passive: false });
+
+canvas.addEventListener('pointercancel', () => { pointerDown = false; didDrag = false; });
+
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', resize);
 }
 window.addEventListener('resize', resize);
+
+// ── Render loop ───────────────────────────────────────────────────────────────
 
 let last = 0;
 
@@ -57,32 +80,14 @@ function loop(ts) {
   last = ts;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.save();
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(scale, scale);
-
-  ctx.fillStyle = '#0a0800';
-  ctx.fillRect(0, 0, W, H);
 
   try {
     game.update(dt);
     game.draw(ctx);
   } catch (e) {
     console.error('GAME CRASH:', e);
-    ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    ctx.fillRect(0, 80, W, 130);
-    ctx.fillStyle = '#ff4444';
-    ctx.font = 'bold 13px monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('CRASH: ' + e.message, 10, 90);
-    const lines = (e.stack || '').split('\n').slice(0, 6);
-    ctx.fillStyle = '#ffaa44';
-    ctx.font = '10px monospace';
-    lines.forEach((l, i) => ctx.fillText(l.trim().slice(0, 110), 10, 110 + i * 13));
   }
 
-  ctx.restore();
   requestAnimationFrame(loop);
 }
 

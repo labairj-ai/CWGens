@@ -4,10 +4,9 @@ const FONT_TITLE = 'bold 13px serif';
 const FONT_BODY  = '11px sans-serif';
 const FONT_SMALL = '10px sans-serif';
 
-// compact = true when the game is scaled below ~72% (mobile landscape / small screens)
-function isCompact() {
-  return Math.min(window.innerWidth / W, window.innerHeight / H) < 0.72;
-}
+// compact = true when the HUD is small (mobile / small screens).
+// HUD_H is computed proportionally in updateLayout — small HUD means small screen.
+function isCompact() { return HUD_H < 60; }
 
 const BUILD_LABEL = (() => {
   if (typeof __BUILD_TIME__ === 'undefined') return '';
@@ -28,7 +27,7 @@ export function drawHUD(ctx, game) {
   const confPct     = confMorale  / (game.startMorale?.confederate || 1);
   const compact     = isCompact();
 
-  ctx.fillStyle = COLORS.hud;
+  ctx.fillStyle = 'rgba(26,16,5,0.91)';
   ctx.fillRect(0, 0, W, HUD_H);
   ctx.strokeStyle = COLORS.hudLine;
   ctx.lineWidth = 1;
@@ -104,7 +103,7 @@ function drawMoraleBar(ctx, x, y, label, pct, bg, fg, isPlayer, barW, barH, labe
 }
 
 export function drawBottomPanel(ctx, game) {
-  ctx.fillStyle = '#120d00';
+  ctx.fillStyle = 'rgba(18,13,0,0.91)';
   ctx.fillRect(0, PANEL_TOP, W, H - PANEL_TOP);
   ctx.strokeStyle = COLORS.hudLine;
   ctx.lineWidth = 1;

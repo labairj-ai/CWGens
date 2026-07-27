@@ -1,23 +1,50 @@
-export const W = 900;
-export const H = 600;
-export const HEX_SIZE = 24;
 export const COLS = 16;
 export const ROWS = 9;
 
 const S3 = Math.sqrt(3);
-export const HUD_H = 88;
-export const PANEL_H = 110;
-const MAP_AREA_H = H - HUD_H - PANEL_H;
-const GRID_W = HEX_SIZE * (2 + 1.5 * (COLS - 1));
-const GRID_H = HEX_SIZE * S3 * ROWS;
 
-export const MAP_X = (W - GRID_W) / 2 + HEX_SIZE;
-export const MAP_Y = HUD_H + (MAP_AREA_H - GRID_H) / 2 + HEX_SIZE * S3 * 0.5;
+// Layout constants — mutable so updateLayout() can resize them for any screen.
+// Initial values match the original 900×600 desktop layout.
+export let W       = 900;
+export let H       = 600;
+export let HEX_SIZE = 24;
+export let HUD_H   = 88;
+export let PANEL_H = 110;
+export let HUD_BOTTOM  = 88;
+export let PANEL_TOP   = 490;
+export let PANEL_BOTTOM = 600;
+export let MAP_X = 13.32;
+export let MAP_Y = 126.84;
+
+// Called by main.js on every resize.  Sets all layout variables so the hex
+// grid fills the available screen with the largest integer hex size that fits.
+export function updateLayout(sw, sh) {
+  W = sw;
+  H = sh;
+
+  // Overlay heights (fixed screen-pixel sizes, not proportional — they are
+  // drawn on top of the map, so they don't steal map space).
+  HUD_H   = Math.max(36, Math.round(sh * 0.095));
+  PANEL_H = Math.max(72, Math.round(sh * 0.18));
+  HUD_BOTTOM  = HUD_H;
+  PANEL_TOP   = sh - PANEL_H;
+  PANEL_BOTTOM = sh;
+
+  // Compute the largest hex size that fits the full grid on screen.
+  // Use a small margin so hexes don't clip the edge.
+  const margin  = 4;
+  const hexByW  = (sw - margin * 2) / (2 + 1.5 * (COLS - 1));
+  const hexByH  = (sh - margin * 2) / (S3 * ROWS);
+  HEX_SIZE = Math.round(Math.min(hexByW, hexByH));
+
+  // Center the grid on screen.
+  const gridW = HEX_SIZE * (2 + 1.5 * (COLS - 1));
+  const gridH = HEX_SIZE * S3 * ROWS;
+  MAP_X = (sw - gridW) / 2 + HEX_SIZE;
+  MAP_Y = (sh - gridH) / 2 + HEX_SIZE * S3 * 0.5;
+}
 
 export const HUD_TOP = 0;
-export const HUD_BOTTOM = HUD_H;
-export const PANEL_TOP = H - PANEL_H;
-export const PANEL_BOTTOM = H;
 
 export const S = {
   MENU:        'menu',
@@ -99,7 +126,6 @@ export const MORALE_RETREAT_THRESHOLD = 28;
 export const VICTORY_MORALE_PCT = 0.28;
 export const DIG_IN_COVER = 0.22;
 
-// Units that march onto the map edge on a specific turn number.
 export const REINFORCEMENTS = [
   { turn:4,  id:'c9',  name:"Pender's Division",  commander:'Maj. Gen. Pender',   type:'infantry', side:'confederate', q:1,  r:6, morale:85, strength:9,  infl:8, ldrorg:7, loyal:8, hlth:7 },
   { turn:4,  id:'u9',  name:"Slocum's XII Corps",  commander:'Maj. Gen. Slocum',   type:'infantry', side:'union',       q:14, r:1, morale:82, strength:9,  infl:7, ldrorg:8, loyal:9, hlth:8 },
