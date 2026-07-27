@@ -1,5 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
-import { HEX_SIZE, TERRAIN, W, H, MAP_Y, ROWS } from './constants.js';
+import { HEX_SIZE, TERRAIN, W, H, MAP_X, MAP_Y, COLS, ROWS } from './constants.js';
 import { hexToPixel, drawHexPath } from './hex.js';
 
 // ── Noise setup ───────────────────────────────────────────────────────────────
@@ -41,24 +41,39 @@ const EDGE_ANG  = [270,330,30,90,150,210].map(d => d * Math.PI / 180);
 const HEX_BORDER = 'rgba(22,14,4,0.28)';
 
 // ── Terrain cache ─────────────────────────────────────────────────────────────
+// The cache is in "map space": hex(0,0) center sits at (cacheShiftX, cacheShiftY).
+// When zoomed on mobile, MAP_X is negative (map wider than screen), so we shift
+// the cache right by |MAP_X| + HEX_SIZE so all hex coords land at positive pixels.
+// drawAllTerrain draws the cache at (-cacheShiftX, -cacheShiftY) in the already-
+// translated (panX, panY) context, so world + pan = screen for every pixel. ✓
 
 let terrainCache = null;
+let terrainCacheShiftX = 0;
+let terrainCacheShiftY = 0;
 
-export function invalidateTerrainCache() { terrainCache = null; }
+export function invalidateTerrainCache() {
+  terrainCache = null;
+  terrainCacheShiftX = 0;
+  terrainCacheShiftY = 0;
+}
 
 export function drawAllTerrain(ctx, terrain) {
   if (!terrainCache) {
-    // Cache must be tall enough to hold the full hex grid even when it exceeds viewport H
-    const cacheH = Math.ceil(MAP_Y + HEX_SIZE * S3 * (ROWS + 0.5)) + 4;
+    // Shift ensures the leftmost/topmost hex edge stays at cache coord ≥ 0.
+    terrainCacheShiftX = Math.max(0, Math.ceil(HEX_SIZE - MAP_X) + 2);
+    terrainCacheShiftY = Math.max(0, Math.ceil(HEX_SIZE - MAP_Y) + 2);
+    const cacheW = Math.ceil(MAP_X + terrainCacheShiftX + HEX_SIZE * (1 + 1.5 * (COLS - 1))) + 4;
+    const cacheH = Math.ceil(MAP_Y + terrainCacheShiftY + HEX_SIZE * S3 * (ROWS + 0.5)) + 4;
     terrainCache = document.createElement('canvas');
-    terrainCache.width  = W;
-    terrainCache.height = Math.max(H, cacheH);
+    terrainCache.width  = Math.max(4, cacheW);
+    terrainCache.height = Math.max(4, cacheH);
     const off = terrainCache.getContext('2d');
+    off.translate(terrainCacheShiftX, terrainCacheShiftY);
     for (let r = 0; r < terrain.length; r++)
       for (let q = 0; q < terrain[r].length; q++)
         drawTerrainHex(off, q, r, terrain[r][q], terrain);
   }
-  ctx.drawImage(terrainCache, 0, 0);
+  ctx.drawImage(terrainCache, -terrainCacheShiftX, -terrainCacheShiftY);
 }
 
 export function drawHighlights(ctx, moveHexes, attackTargets, selectedUnit, rangeHexes = []) {

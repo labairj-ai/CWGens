@@ -35,7 +35,10 @@ export function updateLayout(sw, sh) {
   const margin  = 4;
   const hexByW  = (sw - margin * 2) / (2 + 1.5 * (COLS - 1));
   const hexByH  = (sh - margin * 2) / (S3 * ROWS);
-  HEX_SIZE = Math.round(Math.min(hexByW, hexByH));
+  const fitAll  = Math.round(Math.min(hexByW, hexByH));
+  // On mobile (narrow portrait), zoom in so hexes are larger and tappable;
+  // the map overflows the screen and is navigated by panning.
+  HEX_SIZE = sw < 600 ? Math.round(fitAll * 2) : fitAll;
 
   // Center the grid on screen.
   const gridW = HEX_SIZE * (2 + 1.5 * (COLS - 1));

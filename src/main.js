@@ -1,9 +1,27 @@
-import { updateLayout } from './constants.js';
+import { updateLayout, HEX_SIZE, MAP_X, MAP_Y, COLS, ROWS, W, H } from './constants.js';
+import { invalidateTerrainCache } from './terrain.js';
 import { Game } from './game.js';
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const game = new Game();
+
+// ── Camera / pan ──────────────────────────────────────────────────────────────
+
+let panX = 0, panY = 0;
+
+function clampPan(px, py) {
+  const S3_ = Math.sqrt(3);
+  const margin   = HEX_SIZE * 2;
+  const mapLeft  = MAP_X - HEX_SIZE;
+  const mapRight = MAP_X + HEX_SIZE * 1.5 * (COLS - 1) + HEX_SIZE;
+  const mapTop   = MAP_Y - HEX_SIZE * S3_ * 0.5;
+  const mapBot   = MAP_Y + HEX_SIZE * S3_ * ROWS;
+  return {
+    x: Math.max(margin - mapRight, Math.min(W - margin - mapLeft, px)),
+    y: Math.max(margin - mapBot,   Math.min(H - margin - mapTop,  py)),
+  };
+}
 
 function resize() {
   const dpr = window.devicePixelRatio || 1;
@@ -12,6 +30,9 @@ function resize() {
   const sh  = vp ? vp.height : window.innerHeight;
 
   updateLayout(sw, sh);
+  panX = 0;
+  panY = 0;
+  invalidateTerrainCache();
 
   canvas.width  = Math.round(sw * dpr);
   canvas.height = Math.round(sh * dpr);
@@ -48,8 +69,17 @@ canvas.addEventListener('pointermove', e => {
   if (!pointerDown) return;
   e.preventDefault();
   const { x, y } = getXY(e);
-  if (Math.abs(x - dragStartX) > 6 || Math.abs(y - dragStartY) > 6) {
+  const dx = x - dragStartX;
+  const dy = y - dragStartY;
+  if (!didDrag && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
     didDrag = true;
+  }
+  if (didDrag) {
+    const clamped = clampPan(panX + dx, panY + dy);
+    panX = clamped.x;
+    panY = clamped.y;
+    dragStartX = x;
+    dragStartY = y;
   }
 }, { passive: false });
 
@@ -59,7 +89,7 @@ canvas.addEventListener('pointerup', e => {
   pointerDown = false;
   if (!didDrag) {
     const { x, y } = getXY(e);
-    game.handleClick(x, y);
+    game.handleClick(x, y, panX, panY);
   }
   didDrag = false;
 }, { passive: false });
@@ -83,7 +113,7 @@ function loop(ts) {
 
   try {
     game.update(dt);
-    game.draw(ctx);
+    game.draw(ctx, panX, panY);
   } catch (e) {
     console.error('GAME CRASH:', e);
   }
