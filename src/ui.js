@@ -1,4 +1,4 @@
-import { W, H, COLORS, PANEL_TOP, PANEL_H, HUD_H, UNIT_TYPES, S } from './constants.js';
+import { W, H, COLORS, PANEL_TOP, PANEL_H, HUD_H, UNIT_TYPES, S, BATTLES } from './constants.js';
 
 const FONT_TITLE = 'bold 13px serif';
 const FONT_BODY  = '11px sans-serif';
@@ -33,7 +33,9 @@ export function drawHUD(ctx, game) {
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0, HUD_H); ctx.lineTo(W, HUD_H); ctx.stroke();
 
+  const sc        = game.scenario || BATTLES[0];
   const dayNum    = Math.floor((game.turn - 1) / 6) + 1;
+  const dateStr   = `${sc.month} ${sc.startDay + dayNum - 1}, ${sc.year}`;
   const timeOfDay = game.nightTimer > 0 ? 'Night'
     : ['Morning','Midday','Afternoon'][Math.floor(((game.turn - 1) % 6) / 2)] || 'Afternoon';
 
@@ -43,11 +45,11 @@ export function drawHUD(ctx, game) {
     ctx.font = 'bold 11px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('BATTLE OF GETTYSBURG', W / 2, 3);
+    ctx.fillText(sc.name, W / 2, 3);
 
     ctx.fillStyle = '#7a6040';
     ctx.font = '9px sans-serif';
-    ctx.fillText(`July ${dayNum}, 1863 • ${timeOfDay} • Turn ${game.turn}`, W / 2, 16);
+    ctx.fillText(`${dateStr} • ${timeOfDay} • Turn ${game.turn}`, W / 2, 16);
 
     const barW = Math.min(200, W * 0.23);
     drawMoraleBar(ctx, 8,          26, 'UNION', unionPct,
@@ -60,11 +62,11 @@ export function drawHUD(ctx, game) {
     ctx.font = 'bold 16px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('BATTLE OF GETTYSBURG', W / 2, 6);
+    ctx.fillText(sc.name, W / 2, 6);
 
     ctx.fillStyle = '#7a6040';
     ctx.font = FONT_BODY;
-    ctx.fillText(`July ${dayNum}, 1863  •  ${timeOfDay}  •  Turn ${game.turn}`, W / 2, 26);
+    ctx.fillText(`${dateStr}  •  ${timeOfDay}  •  Turn ${game.turn}`, W / 2, 26);
 
     const barW = Math.min(200, W * 0.22);
     drawMoraleBar(ctx, 20,         48, 'UNION', unionPct,
@@ -399,6 +401,7 @@ export function getButtonAt(px, py, game) {
 
 export function drawOverlay(ctx, game) {
   if (game.state === S.MENU) drawMenuOverlay(ctx, game);
+  else if (game.state === S.BATTLE_SELECT) drawBattleSelectOverlay(ctx, game);
   else if (game.state === S.SIDE_SELECT) drawSideSelectOverlay(ctx, game);
   else if (game.state === S.VICTORY) drawEndOverlay(ctx, game, true);
   else if (game.state === S.DEFEAT) drawEndOverlay(ctx, game, false);
@@ -424,13 +427,13 @@ function drawMenuOverlay(ctx, game) {
   ctx.font = '13px serif';
   ctx.fillText('Inspired by Sierra On-Line\'s classic strategy series', W / 2, H / 2 - 18);
 
-  drawButton(ctx, W / 2 - 120, H / 2 + 10, 240, 40, 'BATTLE OF GETTYSBURG', true);
+  drawButton(ctx, W / 2 - 120, H / 2 + 10, 240, 40, 'SELECT BATTLE', true);
 
   ctx.fillStyle = '#504030';
   ctx.font = FONT_SMALL;
-  ctx.fillText('July 1-3, 1863 • Gettysburg, Pennsylvania', W / 2, H / 2 + 70);
-  ctx.fillText('Lead Union or Confederate forces in the pivotal battle', W / 2, H / 2 + 84);
-  ctx.fillText('that decided the fate of the Confederacy', W / 2, H / 2 + 98);
+  ctx.fillText(`${BATTLES.length} historical battles — Bull Run, Shiloh, Antietam, Gettysburg`, W / 2, H / 2 + 70);
+  ctx.fillText('Command Union or Confederate forces in each engagement', W / 2, H / 2 + 84);
+  ctx.fillText('Break the enemy\'s morale to claim victory', W / 2, H / 2 + 98);
 
   if (BUILD_LABEL) {
     ctx.fillStyle = '#6a5a38';
@@ -439,6 +442,73 @@ function drawMenuOverlay(ctx, game) {
     ctx.textBaseline = 'bottom';
     ctx.fillText(`v ${BUILD_LABEL}`, W / 2, H - 8);
   }
+}
+
+function getBattleSelectLayout() {
+  const compact = H < 520;
+  const cardW   = Math.min(460, W - 24);
+  const cardH   = compact ? 48 : 64;
+  const gap     = compact ? 7 : 12;
+  const x       = Math.floor((W - cardW) / 2);
+  const totalH  = BATTLES.length * cardH + (BATTLES.length - 1) * gap;
+  const y0      = Math.max(compact ? 40 : 90, Math.floor((H - totalH) / 2));
+  return { compact, cardW, cardH, gap, x, y0 };
+}
+
+function drawBattleSelectOverlay(ctx, game) {
+  ctx.fillStyle = 'rgba(10,8,0,0.97)';
+  ctx.fillRect(0, 0, W, H);
+
+  const l = getBattleSelectLayout();
+  ctx.fillStyle = '#c8a850';
+  ctx.font = `bold ${l.compact ? 16 : 26}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('CHOOSE YOUR BATTLE', W / 2, l.compact ? 6 : 30);
+
+  BATTLES.forEach((battle, i) => {
+    const y = l.y0 + i * (l.cardH + l.gap);
+    ctx.fillStyle = '#241708';
+    ctx.strokeStyle = '#806040';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(l.x, y, l.cardW, l.cardH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#e0c070';
+    ctx.font = `bold ${l.compact ? 12 : 15}px serif`;
+    ctx.fillText(battle.name, l.x + 14, y + (l.compact ? 6 : 9));
+
+    ctx.fillStyle = '#907850';
+    ctx.font = `${l.compact ? 9 : 11}px serif`;
+    ctx.fillText(`${battle.dateLabel}  •  ${battle.place}`, l.x + 14, y + (l.compact ? 24 : 30));
+
+    if (!l.compact) {
+      ctx.fillStyle = '#605038';
+      ctx.font = '10px sans-serif';
+      const blurb = battle.blurb.length > 78 ? battle.blurb.slice(0, 75) + '…' : battle.blurb;
+      ctx.fillText(blurb, l.x + 14, y + 47);
+    }
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#a08040';
+    ctx.font = `bold ${l.compact ? 12 : 15}px serif`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText('›', l.x + l.cardW - 14, y + l.cardH / 2);
+  });
+
+  drawBack(ctx);
+}
+
+function drawBack(ctx) {
+  ctx.fillStyle = '#807050';
+  ctx.font = 'bold 12px serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('‹ BACK', 14, 12);
 }
 
 function getSideSelectLayout() {
@@ -474,7 +544,10 @@ function drawSideSelectOverlay(ctx, game) {
   ctx.fillStyle = 'rgba(10,8,0,0.97)';
   ctx.fillRect(0, 0, W, H);
 
-  const l = getSideSelectLayout();
+  const l  = getSideSelectLayout();
+  const sc = game.scenario || BATTLES[0];
+  const uNames = sc.units.filter(u => u.side === 'union').map(u => u.name);
+  const cNames = sc.units.filter(u => u.side === 'confederate').map(u => u.name);
 
   // Header
   ctx.fillStyle = '#c8a850';
@@ -485,7 +558,7 @@ function drawSideSelectOverlay(ctx, game) {
 
   ctx.fillStyle = '#806838';
   ctx.font = `${l.compact ? 10 : 13}px serif`;
-  ctx.fillText('Battle of Gettysburg  •  July 1-3, 1863', W / 2, l.compact ? 25 : H * 0.12 + 28);
+  ctx.fillText(`${sc.name}  •  ${sc.dateLabel}`, W / 2, l.compact ? 25 : H * 0.12 + 28);
 
   // Union card
   ctx.fillStyle = COLORS.union;
@@ -495,7 +568,7 @@ function drawSideSelectOverlay(ctx, game) {
   ctx.roundRect(l.leftX, l.cardY, l.cardW, l.cardH, 6);
   ctx.fill(); ctx.stroke();
 
-  // Confederate card — dark brown so button stands out
+  // Confederate card
   ctx.fillStyle = '#2a1a0a';
   ctx.strokeStyle = COLORS.confLight;
   ctx.lineWidth = 2;
@@ -516,15 +589,13 @@ function drawSideSelectOverlay(ctx, game) {
     ctx.fillText('UNION', lcx, ty);
     ctx.fillStyle = '#cce0ff';
     ctx.font = '10px serif';
-    ctx.fillText('Army of the Potomac', lcx, ty + 18);
-    ctx.fillText('Gen. George Meade', lcx, ty + 31);
+    ctx.fillText(sc.union.army, lcx, ty + 18);
+    ctx.fillText(sc.union.commander, lcx, ty + 31);
 
     ctx.fillStyle = '#7799cc';
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'left';
-    ["Howard's Corps", "Reynolds' Corps", "Hancock's Corps", "Buford's Cavalry"].forEach(
-      (u, i) => ctx.fillText('• ' + u, l.leftX + 6, ty + 50 + i * 13)
-    );
+    uNames.slice(0, 4).forEach((u, i) => ctx.fillText('• ' + u, l.leftX + 6, ty + 50 + i * 13));
 
     ctx.fillStyle = '#ddd8aa';
     ctx.font = 'bold 14px serif';
@@ -532,15 +603,13 @@ function drawSideSelectOverlay(ctx, game) {
     ctx.fillText('CONFEDERATE', rcx, ty);
     ctx.fillStyle = '#eee8cc';
     ctx.font = '10px serif';
-    ctx.fillText('Army of N. Virginia', rcx, ty + 18);
-    ctx.fillText('Gen. Robert E. Lee', rcx, ty + 31);
+    ctx.fillText(sc.confederate.army, rcx, ty + 18);
+    ctx.fillText(sc.confederate.commander, rcx, ty + 31);
 
     ctx.fillStyle = '#b8a070';
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'left';
-    ["Rodes' Division", "Heth's Division", "Stuart's Cavalry", "Gen. R.E. Lee"].forEach(
-      (u, i) => ctx.fillText('• ' + u, l.rightX + 6, ty + 50 + i * 13)
-    );
+    cNames.slice(0, 4).forEach((u, i) => ctx.fillText('• ' + u, l.rightX + 6, ty + 50 + i * 13));
 
     drawButton(ctx, l.unionBtnX, l.btnY, l.btnW, l.btnH, 'PLAY AS UNION', false);
     drawButton(ctx, l.confBtnX,  l.btnY, l.btnW, l.btnH, 'CONFEDERATE',   false);
@@ -554,28 +623,23 @@ function drawSideSelectOverlay(ctx, game) {
     ctx.fillText('UNION', lcx, ty);
     ctx.fillStyle = '#dde8ff';
     ctx.font = '11px serif';
-    ctx.fillText('Army of the Potomac', lcx, ty + 24);
-    ctx.fillText('General George Meade', lcx, ty + 38);
+    ctx.fillText(sc.union.army, lcx, ty + 24);
+    ctx.fillText(sc.union.commander, lcx, ty + 38);
 
     ctx.fillStyle = '#ddd8aa';
     ctx.font = 'bold 20px serif';
     ctx.fillText('CONFEDERATE', rcx, ty);
     ctx.fillStyle = '#eee8cc';
     ctx.font = '11px serif';
-    ctx.fillText('Army of Northern Virginia', rcx, ty + 24);
-    ctx.fillText('General Robert E. Lee', rcx, ty + 38);
-
-    const uUnits = ["Howard's Corps","Reynolds' Corps","Hancock's Corps","Sickles' Corps",
-                    "Sedgwick's Corps","Buford's Cavalry","Artillery Reserve","Gen. Meade"];
-    const cUnits = ["Rodes' Division","Heth's Division","McLaws' Division","Hood's Division",
-                    "Early's Division","Stuart's Cavalry","Long. Artillery","Gen. R.E. Lee"];
+    ctx.fillText(sc.confederate.army, rcx, ty + 24);
+    ctx.fillText(sc.confederate.commander, rcx, ty + 38);
 
     ctx.fillStyle = '#8899bb';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'left';
-    uUnits.forEach((u, i) => ctx.fillText('• ' + u, l.leftX + 14, l.cardY + 86 + i * 14));
+    uNames.slice(0, 8).forEach((u, i) => ctx.fillText('• ' + u, l.leftX + 14, l.cardY + 86 + i * 14));
     ctx.fillStyle = '#bba888';
-    cUnits.forEach((u, i) => ctx.fillText('• ' + u, l.rightX + 14, l.cardY + 86 + i * 14));
+    cNames.slice(0, 8).forEach((u, i) => ctx.fillText('• ' + u, l.rightX + 14, l.cardY + 86 + i * 14));
 
     drawButton(ctx, l.unionBtnX, l.btnY, l.btnW, l.btnH, 'PLAY AS UNION',        false);
     drawButton(ctx, l.confBtnX,  l.btnY, l.btnW, l.btnH, 'PLAY AS CONFEDERATE',  false);
@@ -585,6 +649,8 @@ function drawSideSelectOverlay(ctx, game) {
     ctx.textAlign = 'center';
     ctx.fillText('Victory: Break enemy morale below 28%. Morale drops through combat losses and routs.', W / 2, H - 30);
   }
+
+  drawBack(ctx);
 }
 
 function drawEndOverlay(ctx, game, isVictory) {
@@ -685,10 +751,18 @@ export function getMenuButtonAt(px, py, game) {
     const bx = W / 2 - 120, by = H / 2 + 10, bw = 240, bh = 40;
     if (px >= bx && px <= bx + bw && py >= by && py <= by + bh) return 'play';
   }
+  if (game.state === S.BATTLE_SELECT) {
+    if (px < 80 && py < 34) return 'back';
+    const l = getBattleSelectLayout();
+    for (let i = 0; i < BATTLES.length; i++) {
+      const y = l.y0 + i * (l.cardH + l.gap);
+      if (px >= l.x && px <= l.x + l.cardW && py >= y && py <= y + l.cardH) return `battle:${i}`;
+    }
+  }
   if (game.state === S.SIDE_SELECT) {
+    if (px < 80 && py < 34) return 'back';
     const l = getSideSelectLayout();
     if (l.compact) {
-      // Entire card is the tap target on mobile
       if (px >= l.leftX  && px <= l.leftX  + l.cardW && py >= l.cardY && py <= l.cardY + l.cardH) return 'union';
       if (px >= l.rightX && px <= l.rightX + l.cardW && py >= l.cardY && py <= l.cardY + l.cardH) return 'confederate';
     } else {

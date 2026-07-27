@@ -1,8 +1,8 @@
 import {
-  S, GETTYSBURG_TERRAIN, GETTYSBURG_UNITS, UNIT_TYPES,
+  S, BATTLES, UNIT_TYPES,
   TERRAIN, MORALE_ROUT_THRESHOLD, MORALE_RETREAT_THRESHOLD,
   VICTORY_MORALE_PCT, TURNS_PER_DAY, MAX_TURNS,
-  DIG_IN_COVER, REINFORCEMENTS, HUD_H, PANEL_TOP, W, H,
+  DIG_IN_COVER, HUD_H, PANEL_TOP, W, H,
 } from './constants.js';
 import {
   getMovableHexes, getAttackableTargets, getHexesInAttackRange,
@@ -42,12 +42,13 @@ export class Game {
     this.attackMode = false;
     this.chargeMode = false;
     this.rangeHexes = [];
+    this.scenario = BATTLES[0];
   }
 
   startBattle(playerSide) {
     this.playerSide = playerSide;
-    this.terrain = GETTYSBURG_TERRAIN.map(row => [...row]);
-    this.units = GETTYSBURG_UNITS.map(u => ({
+    this.terrain = this.scenario.terrain.map(row => [...row]);
+    this.units = this.scenario.units.map(u => ({
       ...u,
       maxStrength: u.strength,
       org: 90,
@@ -137,7 +138,16 @@ export class Game {
     // Menu overlays and HUD/panel buttons use raw canvas coords (no pan)
     const menuBtn = getMenuButtonAt(gx, gy, this);
     if (menuBtn) {
-      if (menuBtn === 'play') { this.state = S.SIDE_SELECT; return; }
+      if (menuBtn === 'play') { this.state = S.BATTLE_SELECT; return; }
+      if (menuBtn.startsWith('battle:')) {
+        const idx = parseInt(menuBtn.slice(7), 10);
+        if (BATTLES[idx]) { this.scenario = BATTLES[idx]; this.state = S.SIDE_SELECT; }
+        return;
+      }
+      if (menuBtn === 'back') {
+        this.state = this.state === S.SIDE_SELECT ? S.BATTLE_SELECT : S.MENU;
+        return;
+      }
       if (menuBtn === 'union') { this.startBattle('union'); return; }
       if (menuBtn === 'confederate') { this.startBattle('confederate'); return; }
       if (menuBtn === 'again') { stopMusic(); this.state = S.MENU; return; }
@@ -443,7 +453,7 @@ export class Game {
   }
 
   processReinforcements() {
-    const arriving = REINFORCEMENTS.filter(r => r.turn === this.turn);
+    const arriving = (this.scenario.reinforcements || []).filter(r => r.turn === this.turn);
     for (const rein of arriving) {
       if (this.units.find(u => u.id === rein.id)) continue;
       const pos = this.findEntryHex(rein.q, rein.r);
