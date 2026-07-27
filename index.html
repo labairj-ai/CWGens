@@ -25,9 +25,38 @@
         touch-action: none;
       }
       canvas { display: block; image-rendering: pixelated; }
+
+      #portrait-warn {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: #1a1005;
+        color: #c8a850;
+        font-family: Georgia, serif;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        text-align: center;
+        gap: 16px;
+        z-index: 999;
+      }
+      #portrait-warn .icon { font-size: 52px; }
+      #portrait-warn h2  { font-size: 22px; }
+      #portrait-warn p   { font-size: 14px; color: #806838; }
+
+      @media (orientation: portrait) and (max-height: 600px),
+             (orientation: portrait) and (max-width: 600px) {
+        #portrait-warn { display: flex; }
+        canvas { display: none; }
+      }
     </style>
   </head>
   <body>
+    <div id="portrait-warn">
+      <div class="icon">⟳</div>
+      <h2>Rotate to Landscape</h2>
+      <p>Civil War Generals plays in landscape mode</p>
+    </div>
     <canvas id="c"></canvas>
     <script type="module" src="/src/main.js"></script>
   </body>
