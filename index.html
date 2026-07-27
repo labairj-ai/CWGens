@@ -59,6 +59,11 @@
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('%BASE_URL%sw.js');
+        // When a new service worker activates and takes control, reload so the
+        // page immediately runs the freshly cached JS instead of the old bundle.
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
       }
     </script>
   </body>
