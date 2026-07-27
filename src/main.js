@@ -17,9 +17,13 @@ function clampPan(px, py) {
   const mapRight = MAP_X + HEX_SIZE * 1.5 * (COLS - 1) + HEX_SIZE;
   const mapTop   = MAP_Y - HEX_SIZE * S3_ * 0.5;
   const mapBot   = MAP_Y + HEX_SIZE * S3_ * ROWS;
+  // Max pan: allow scrolling until the near edge is at the margin.
+  // If the map fits on screen in that axis, lock pan to 0.
+  const maxX = (mapRight - mapLeft) > W ? Math.max(0, margin - mapLeft) : 0;
+  const maxY = (mapBot  - mapTop)   > H ? Math.max(0, margin - mapTop)  : 0;
   return {
-    x: Math.max(margin - mapRight, Math.min(W - margin - mapLeft, px)),
-    y: Math.max(margin - mapBot,   Math.min(H - margin - mapTop,  py)),
+    x: Math.max(W - margin - mapRight, Math.min(maxX, px)),
+    y: Math.max(H - margin - mapBot,   Math.min(maxY, py)),
   };
 }
 

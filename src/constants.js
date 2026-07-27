@@ -16,8 +16,9 @@ export let PANEL_BOTTOM = 600;
 export let MAP_X = 13.32;
 export let MAP_Y = 126.84;
 
-// Called by main.js on every resize.  Sets all layout variables so the hex
-// grid fills the available screen with the largest integer hex size that fits.
+// Called by main.js on every resize.  Sets all layout variables.
+// Hexes are always larger than what fits on screen so the map requires
+// panning — this keeps touch targets large and avoids squeezing the HUD/panel.
 export function updateLayout(sw, sh) {
   W = sw;
   H = sh;
@@ -25,26 +26,27 @@ export function updateLayout(sw, sh) {
   // Overlay heights (fixed screen-pixel sizes, not proportional — they are
   // drawn on top of the map, so they don't steal map space).
   HUD_H   = Math.max(36, Math.round(sh * 0.095));
-  PANEL_H = Math.max(72, Math.round(sh * 0.18));
+  PANEL_H = Math.max(88, Math.round(sh * 0.22));
   HUD_BOTTOM  = HUD_H;
   PANEL_TOP   = sh - PANEL_H;
   PANEL_BOTTOM = sh;
 
-  // Compute the largest hex size that fits the full grid on screen.
-  // Use a small margin so hexes don't clip the edge.
+  // Hex size: 1.6× what would fit the full grid, minimum 40px.
+  // This ensures the map always overflows the viewport and requires panning,
+  // keeping hexes large and touch-friendly on all screen sizes.
   const margin  = 4;
   const hexByW  = (sw - margin * 2) / (2 + 1.5 * (COLS - 1));
   const hexByH  = (sh - margin * 2) / (S3 * ROWS);
-  const fitAll  = Math.round(Math.min(hexByW, hexByH));
-  // On mobile (narrow portrait), zoom in so hexes are larger and tappable;
-  // the map overflows the screen and is navigated by panning.
-  HEX_SIZE = sw < 600 ? Math.round(fitAll * 2) : fitAll;
+  const fitAll  = Math.min(hexByW, hexByH);
+  HEX_SIZE = Math.max(Math.round(fitAll * 1.6), 40);
 
-  // Center the grid on screen.
+  // If the grid overflows the screen, anchor it at the top-left edge so the
+  // player starts with the left side of the map visible and can pan right.
+  // If it fits (rare on large displays), center it as before.
   const gridW = HEX_SIZE * (2 + 1.5 * (COLS - 1));
   const gridH = HEX_SIZE * S3 * ROWS;
-  MAP_X = (sw - gridW) / 2 + HEX_SIZE;
-  MAP_Y = (sh - gridH) / 2 + HEX_SIZE * S3 * 0.5;
+  MAP_X = gridW > sw ? HEX_SIZE : (sw - gridW) / 2 + HEX_SIZE;
+  MAP_Y = gridH > sh ? HEX_SIZE * S3 * 0.5 : (sh - gridH) / 2 + HEX_SIZE * S3 * 0.5;
 }
 
 export const HUD_TOP = 0;
@@ -256,5 +258,157 @@ export const BATTLES = [
       { turn:10, id:'c10', name:"Pickett's Division",  commander:'Maj. Gen. Pickett',   type:'infantry', side:'confederate', q:1,  r:3, morale:92, strength:10, infl:8, ldrorg:7, loyal:8, hlth:8 },
       { turn:10, id:'u10', name:"Crawford's Division", commander:'Brig. Gen. Crawford', type:'infantry', side:'union',       q:14, r:5, morale:80, strength:8,  infl:6, ldrorg:7, loyal:8, hlth:8 },
     ],
+  },
+  {
+    id: 'chancellorsville', name: 'CHANCELLORSVILLE',
+    place: 'Spotsylvania County, Virginia', dateLabel: 'May 1-4, 1863',
+    month: 'May', startDay: 1, year: 1863,
+    blurb: "Lee's masterpiece. Outnumbered 2-to-1, he splits his army and sends Jackson on a daring flank march through the Wilderness.",
+    union: { army: 'Army of the Potomac', commander: 'Maj. Gen. Joseph Hooker' },
+    confederate: { army: 'Army of Northern Virginia', commander: 'Gen. Robert E. Lee' },
+    terrain: [
+      ['W','W','F','F','F','O','F','F','O','O','F','F','O','O','O','O'],
+      ['O','F','F','F','R','O','F','F','F','O','F','F','O','O','O','O'],
+      ['O','O','F','F','R','O','O','F','F','F','F','O','O','O','O','O'],
+      ['O','F','F','F','R','R','R','T','F','F','O','O','O','O','O','O'],
+      ['O','O','F','F','F','O','F','F','F','F','O','O','O','O','O','O'],
+      ['O','O','F','F','O','O','F','F','F','O','O','F','F','O','O','O'],
+      ['F','F','F','O','O','O','F','F','O','O','O','F','F','F','O','O'],
+      ['F','F','O','O','O','O','O','F','F','O','O','F','F','O','O','O'],
+      ['F','O','O','O','O','O','O','O','F','F','F','F','O','O','O','O'],
+    ],
+    units: [
+      { id:'c1', name:"Jackson's Corps",   commander:'Lt. Gen. T.J. Jackson',  type:'infantry',  side:'confederate', q:1, r:5, morale:92, strength:9,  infl:10,ldrorg:10,loyal:9, hlth:8 },
+      { id:'c2', name:"McLaws' Division",  commander:'Maj. Gen. McLaws',        type:'infantry',  side:'confederate', q:2, r:2, morale:86, strength:8,  infl:7, ldrorg:8, loyal:8, hlth:8 },
+      { id:'c3', name:"Anderson's Div.",   commander:'Maj. Gen. Anderson',      type:'infantry',  side:'confederate', q:3, r:4, morale:84, strength:8,  infl:7, ldrorg:7, loyal:8, hlth:8 },
+      { id:'c4', name:"Rodes' Division",   commander:'Maj. Gen. Rodes',         type:'infantry',  side:'confederate', q:1, r:7, morale:88, strength:8,  infl:8, ldrorg:8, loyal:8, hlth:8 },
+      { id:'c5', name:"Colston's Division",commander:'Maj. Gen. Colston',       type:'infantry',  side:'confederate', q:2, r:6, morale:82, strength:7,  infl:6, ldrorg:6, loyal:7, hlth:8 },
+      { id:'c6', name:"Stuart's Cavalry",  commander:'Maj. Gen. Stuart',        type:'cavalry',   side:'confederate', q:0, r:2, morale:90, strength:6,  infl:9, ldrorg:8, loyal:8, hlth:9 },
+      { id:'c7', name:"Reserve Artillery", commander:'Brig. Gen. Pendleton',    type:'artillery', side:'confederate', q:3, r:3, morale:80, strength:7,  infl:6, ldrorg:8, loyal:8, hlth:8 },
+      { id:'c8', name:"Gen. R.E. Lee",     commander:'Gen. Robert E. Lee',      type:'general',   side:'confederate', q:1, r:3, morale:96, strength:10, infl:10,ldrorg:9, loyal:10,hlth:7 },
+      { id:'u1', name:"Howard's XI Corps", commander:'Maj. Gen. Howard',        type:'infantry',  side:'union', q:12, r:4, morale:78, strength:8,  infl:6, ldrorg:5, loyal:7, hlth:7 },
+      { id:'u2', name:"Slocum's XII Corps",commander:'Maj. Gen. Slocum',        type:'infantry',  side:'union', q:13, r:3, morale:82, strength:8,  infl:7, ldrorg:8, loyal:9, hlth:8 },
+      { id:'u3', name:"Couch's II Corps",  commander:'Maj. Gen. Couch',         type:'infantry',  side:'union', q:13, r:5, morale:84, strength:9,  infl:8, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u4', name:"Meade's V Corps",   commander:'Maj. Gen. Meade',         type:'infantry',  side:'union', q:14, r:2, morale:86, strength:9,  infl:9, ldrorg:9, loyal:9, hlth:8 },
+      { id:'u5', name:"Reynolds' I Corps", commander:'Maj. Gen. Reynolds',      type:'infantry',  side:'union', q:14, r:6, morale:85, strength:8,  infl:9, ldrorg:9, loyal:9, hlth:8 },
+      { id:'u6', name:"Pleasonton's Cav.", commander:'Brig. Gen. Pleasonton',   type:'cavalry',   side:'union', q:11, r:3, morale:80, strength:6,  infl:6, ldrorg:7, loyal:8, hlth:8 },
+      { id:'u7', name:"Artillery Reserve", commander:'Brig. Gen. Hunt',         type:'artillery', side:'union', q:13, r:4, morale:80, strength:8,  infl:8, ldrorg:9, loyal:9, hlth:8 },
+      { id:'u8', name:"Gen. Hooker",       commander:'Maj. Gen. Joseph Hooker', type:'general',   side:'union', q:15, r:4, morale:84, strength:10, infl:8, ldrorg:7, loyal:7, hlth:6 },
+    ],
+    reinforcements: [],
+  },
+  {
+    id: 'chickamauga', name: 'CHICKAMAUGA',
+    place: 'Walker County, Georgia', dateLabel: 'September 19-20, 1863',
+    month: 'September', startDay: 19, year: 1863,
+    blurb: "Bragg's army catches Rosecrans in the Georgia forest. Longstreet's breakthrough routs half the Union army.",
+    union: { army: 'Army of the Cumberland', commander: 'Maj. Gen. William Rosecrans' },
+    confederate: { army: 'Army of Tennessee', commander: 'Gen. Braxton Bragg' },
+    terrain: [
+      ['F','F','F','O','O','F','F','W','O','O','F','F','O','O','O','O'],
+      ['F','F','O','O','R','F','F','W','W','O','F','F','F','O','O','O'],
+      ['F','F','F','O','R','F','O','O','W','O','O','F','F','O','O','O'],
+      ['O','F','F','O','R','F','F','O','W','W','O','F','F','F','O','O'],
+      ['O','O','F','F','R','O','F','O','O','W','O','O','F','F','O','O'],
+      ['O','O','O','F','R','R','R','F','O','O','O','O','F','F','O','O'],
+      ['O','O','F','F','O','O','F','F','O','O','O','O','O','F','F','O'],
+      ['F','F','F','O','O','F','F','O','O','O','O','O','O','O','F','O'],
+      ['F','F','O','O','O','F','F','F','O','O','O','O','O','O','O','O'],
+    ],
+    units: [
+      { id:'c1', name:"Polk's Corps",          commander:'Lt. Gen. Polk',             type:'infantry',  side:'confederate', q:1, r:0, morale:86, strength:9,  infl:7, ldrorg:7, loyal:8, hlth:8 },
+      { id:'c2', name:"D.H. Hill's Corps",     commander:'Lt. Gen. D.H. Hill',        type:'infantry',  side:'confederate', q:2, r:2, morale:84, strength:9,  infl:7, ldrorg:8, loyal:7, hlth:8 },
+      { id:'c3', name:"Buckner's Corps",       commander:'Maj. Gen. Buckner',         type:'infantry',  side:'confederate', q:1, r:4, morale:82, strength:8,  infl:7, ldrorg:7, loyal:7, hlth:8 },
+      { id:'c4', name:"Longstreet's Wing",     commander:'Lt. Gen. Longstreet',       type:'infantry',  side:'confederate', q:2, r:6, morale:90, strength:10, infl:9, ldrorg:9, loyal:8, hlth:8 },
+      { id:'c5', name:"Walker's Corps",        commander:'Maj. Gen. Walker',          type:'infantry',  side:'confederate', q:1, r:7, morale:83, strength:8,  infl:7, ldrorg:7, loyal:7, hlth:8 },
+      { id:'c6', name:"Forrest's Cavalry",     commander:'Maj. Gen. Forrest',         type:'cavalry',   side:'confederate', q:0, r:3, morale:92, strength:6,  infl:10,ldrorg:8, loyal:8, hlth:9 },
+      { id:'c7', name:"Artillery Reserve",     commander:'Brig. Gen. Robertson',      type:'artillery', side:'confederate', q:3, r:3, morale:80, strength:7,  infl:6, ldrorg:8, loyal:7, hlth:8 },
+      { id:'c8', name:"Gen. Bragg",            commander:'Gen. Braxton Bragg',        type:'general',   side:'confederate', q:1, r:5, morale:84, strength:10, infl:6, ldrorg:8, loyal:6, hlth:7 },
+      { id:'u1', name:"Thomas' XIV Corps",     commander:'Maj. Gen. Thomas',          type:'infantry',  side:'union', q:12, r:1, morale:88, strength:9,  infl:9, ldrorg:9, loyal:9, hlth:8 },
+      { id:'u2', name:"McCook's XX Corps",     commander:'Maj. Gen. McCook',          type:'infantry',  side:'union', q:13, r:3, morale:80, strength:8,  infl:6, ldrorg:6, loyal:7, hlth:7 },
+      { id:'u3', name:"Crittenden's XXI",      commander:'Maj. Gen. Crittenden',      type:'infantry',  side:'union', q:13, r:5, morale:81, strength:8,  infl:6, ldrorg:7, loyal:7, hlth:7 },
+      { id:'u4', name:"Granger's Reserve",     commander:'Maj. Gen. Granger',         type:'infantry',  side:'union', q:14, r:7, morale:83, strength:8,  infl:7, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u5', name:"Van Cleve's Division",  commander:'Brig. Gen. Van Cleve',      type:'infantry',  side:'union', q:14, r:2, morale:79, strength:7,  infl:6, ldrorg:6, loyal:7, hlth:7 },
+      { id:'u6', name:"Minty's Cavalry",       commander:'Col. Minty',                type:'cavalry',   side:'union', q:11, r:0, morale:80, strength:5,  infl:6, ldrorg:7, loyal:8, hlth:8 },
+      { id:'u7', name:"Artillery Reserve",     commander:'Capt. Lilly',               type:'artillery', side:'union', q:13, r:4, morale:78, strength:7,  infl:7, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u8', name:"Gen. Rosecrans",        commander:'Maj. Gen. Rosecrans',       type:'general',   side:'union', q:14, r:4, morale:84, strength:10, infl:7, ldrorg:8, loyal:7, hlth:7 },
+    ],
+    reinforcements: [],
+  },
+  {
+    id: 'spotsylvania', name: 'SPOTSYLVANIA',
+    place: 'Spotsylvania Court House, Virginia', dateLabel: 'May 8-21, 1864',
+    month: 'May', startDay: 8, year: 1864,
+    blurb: "Grant hammers Lee's earthworks. The Bloody Angle sees twenty hours of hand-to-hand combat — the most savage fighting of the war.",
+    union: { army: 'Army of the Potomac', commander: 'Lt. Gen. Ulysses S. Grant' },
+    confederate: { army: 'Army of Northern Virginia', commander: 'Gen. Robert E. Lee' },
+    terrain: [
+      ['F','F','O','O','F','F','O','F','F','O','F','F','F','O','O','O'],
+      ['F','F','F','O','F','H','H','O','F','F','O','F','F','O','O','O'],
+      ['O','F','F','H','H','H','O','O','O','F','F','O','F','F','O','O'],
+      ['O','O','H','H','H','O','O','O','O','O','F','F','F','O','O','O'],
+      ['O','O','O','H','O','O','R','T','O','O','O','F','F','O','O','O'],
+      ['O','O','F','O','R','R','R','R','O','O','O','O','F','F','O','O'],
+      ['O','F','F','F','O','O','F','F','F','O','O','O','O','F','F','O'],
+      ['F','F','F','O','F','F','F','O','O','O','O','O','O','O','F','O'],
+      ['F','F','O','F','F','F','O','O','O','O','O','O','O','O','O','O'],
+    ],
+    units: [
+      { id:'c1', name:"Ewell's Corps",      commander:'Lt. Gen. Ewell',          type:'infantry',  side:'confederate', q:2, r:1, morale:86, strength:9,  infl:8, ldrorg:8, loyal:8, hlth:7 },
+      { id:'c2', name:"Anderson's Corps",   commander:'Lt. Gen. R.H. Anderson',  type:'infantry',  side:'confederate', q:2, r:3, morale:84, strength:9,  infl:8, ldrorg:8, loyal:8, hlth:8 },
+      { id:'c3', name:"Early's Corps",      commander:'Lt. Gen. Early',          type:'infantry',  side:'confederate', q:2, r:5, morale:83, strength:8,  infl:8, ldrorg:8, loyal:7, hlth:8 },
+      { id:'c4', name:"Johnson's Division", commander:'Maj. Gen. Ed. Johnson',   type:'infantry',  side:'confederate', q:3, r:2, morale:85, strength:8,  infl:7, ldrorg:7, loyal:8, hlth:8 },
+      { id:'c5', name:"Ramseur's Division", commander:'Brig. Gen. Ramseur',      type:'infantry',  side:'confederate', q:2, r:6, morale:82, strength:7,  infl:7, ldrorg:7, loyal:7, hlth:8 },
+      { id:'c6', name:"Rosser's Cavalry",   commander:'Brig. Gen. Rosser',       type:'cavalry',   side:'confederate', q:0, r:3, morale:84, strength:5,  infl:7, ldrorg:7, loyal:7, hlth:8 },
+      { id:'c7', name:"Conf. Artillery",    commander:'Brig. Gen. Long',         type:'artillery', side:'confederate', q:4, r:2, morale:80, strength:8,  infl:7, ldrorg:8, loyal:7, hlth:8 },
+      { id:'c8', name:"Gen. R.E. Lee",      commander:'Gen. Robert E. Lee',      type:'general',   side:'confederate', q:1, r:4, morale:94, strength:10, infl:10,ldrorg:9, loyal:10,hlth:6 },
+      { id:'u1', name:"Hancock's II Corps", commander:'Maj. Gen. Hancock',       type:'infantry',  side:'union', q:13, r:1, morale:88, strength:10, infl:9, ldrorg:9, loyal:9, hlth:8 },
+      { id:'u2', name:"Warren's V Corps",   commander:'Maj. Gen. Warren',        type:'infantry',  side:'union', q:13, r:3, morale:84, strength:9,  infl:8, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u3', name:"Wright's VI Corps",  commander:'Maj. Gen. Wright',        type:'infantry',  side:'union', q:13, r:5, morale:83, strength:9,  infl:8, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u4', name:"Burnside's IX Corps",commander:'Maj. Gen. Burnside',      type:'infantry',  side:'union', q:14, r:6, morale:80, strength:8,  infl:6, ldrorg:6, loyal:8, hlth:8 },
+      { id:'u5', name:"Upton's Brigade",    commander:'Col. Emory Upton',        type:'infantry',  side:'union', q:11, r:2, morale:87, strength:7,  infl:8, ldrorg:8, loyal:9, hlth:8 },
+      { id:'u6', name:"Sheridan's Cavalry", commander:'Maj. Gen. Sheridan',      type:'cavalry',   side:'union', q:12, r:7, morale:86, strength:6,  infl:9, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u7', name:"Artillery Reserve",  commander:'Brig. Gen. Hunt',         type:'artillery', side:'union', q:14, r:2, morale:80, strength:8,  infl:8, ldrorg:9, loyal:9, hlth:8 },
+      { id:'u8', name:"Gen. Grant",         commander:'Lt. Gen. U.S. Grant',     type:'general',   side:'union', q:14, r:4, morale:94, strength:10, infl:9, ldrorg:9, loyal:9, hlth:8 },
+    ],
+    reinforcements: [],
+  },
+  {
+    id: 'franklin', name: 'BATTLE OF FRANKLIN',
+    place: 'Franklin, Tennessee', dateLabel: 'November 30, 1864',
+    month: 'November', startDay: 30, year: 1864,
+    blurb: "Hood's desperate charge at Schofield's fortified lines. Six Confederate generals die in the most costly assault since Pickett's Charge.",
+    union: { army: 'Army of the Ohio', commander: 'Maj. Gen. John Schofield' },
+    confederate: { army: 'Army of Tennessee', commander: 'Lt. Gen. John B. Hood' },
+    terrain: [
+      ['O','O','H','H','O','O','F','F','O','O','O','H','H','O','O','O'],
+      ['O','H','H','O','O','F','F','F','O','O','O','O','H','H','O','O'],
+      ['O','O','O','O','O','F','F','O','O','O','O','O','O','H','O','O'],
+      ['O','O','O','O','O','O','O','O','O','O','O','O','O','O','O','O'],
+      ['O','O','O','O','O','R','T','T','T','R','O','O','O','O','O','O'],
+      ['O','O','O','O','H','H','T','T','H','H','O','O','O','O','O','O'],
+      ['O','O','O','O','O','O','R','R','R','O','O','O','W','W','O','O'],
+      ['O','O','O','O','O','O','O','O','O','O','O','W','W','W','O','O'],
+      ['O','O','O','O','O','O','O','O','O','O','W','W','W','O','O','O'],
+    ],
+    units: [
+      { id:'c1', name:"Cheatham's Corps",   commander:'Maj. Gen. Cheatham',      type:'infantry',  side:'confederate', q:1, r:1, morale:88, strength:9,  infl:8, ldrorg:7, loyal:8, hlth:8 },
+      { id:'c2', name:"S.D. Lee's Corps",   commander:'Lt. Gen. S.D. Lee',       type:'infantry',  side:'confederate', q:2, r:3, morale:84, strength:8,  infl:7, ldrorg:8, loyal:7, hlth:8 },
+      { id:'c3', name:"Stewart's Corps",    commander:'Lt. Gen. Stewart',        type:'infantry',  side:'confederate', q:1, r:5, morale:85, strength:9,  infl:8, ldrorg:8, loyal:8, hlth:8 },
+      { id:'c4', name:"Cleburne's Division",commander:'Maj. Gen. Cleburne',      type:'infantry',  side:'confederate', q:2, r:2, morale:92, strength:9,  infl:9, ldrorg:9, loyal:9, hlth:8 },
+      { id:'c5', name:"Brown's Division",   commander:'Maj. Gen. Brown',         type:'infantry',  side:'confederate', q:3, r:4, morale:84, strength:8,  infl:7, ldrorg:7, loyal:7, hlth:8 },
+      { id:'c6', name:"Jackson's Cavalry",  commander:'Brig. Gen. W.H. Jackson', type:'cavalry',   side:'confederate', q:0, r:4, morale:82, strength:5,  infl:7, ldrorg:7, loyal:7, hlth:8 },
+      { id:'c7', name:"Conf. Artillery",    commander:'Brig. Gen. Storrs',       type:'artillery', side:'confederate', q:3, r:6, morale:78, strength:7,  infl:6, ldrorg:7, loyal:7, hlth:8 },
+      { id:'c8', name:"Gen. Hood",          commander:'Lt. Gen. John B. Hood',   type:'general',   side:'confederate', q:1, r:7, morale:88, strength:10, infl:8, ldrorg:7, loyal:8, hlth:5 },
+      { id:'u1', name:"Cox's XXIII Corps",  commander:'Maj. Gen. Cox',           type:'infantry',  side:'union', q:7,  r:4, morale:84, strength:9,  infl:8, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u2', name:"Wagner's Division",  commander:'Brig. Gen. Wagner',       type:'infantry',  side:'union', q:5,  r:2, morale:78, strength:7,  infl:6, ldrorg:5, loyal:7, hlth:7 },
+      { id:'u3', name:"Ruger's Division",   commander:'Brig. Gen. Ruger',        type:'infantry',  side:'union', q:12, r:2, morale:82, strength:8,  infl:7, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u4', name:"Kimball's Division", commander:'Brig. Gen. Kimball',      type:'infantry',  side:'union', q:8,  r:5, morale:83, strength:8,  infl:7, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u5', name:"Reilly's Brigade",   commander:'Col. Reilly',             type:'infantry',  side:'union', q:6,  r:5, morale:80, strength:7,  infl:7, ldrorg:7, loyal:8, hlth:8 },
+      { id:'u6', name:"Hatch's Cavalry",    commander:'Brig. Gen. Hatch',        type:'cavalry',   side:'union', q:11, r:5, morale:80, strength:5,  infl:6, ldrorg:7, loyal:8, hlth:8 },
+      { id:'u7', name:"Artillery Reserve",  commander:'Maj. Bridges',            type:'artillery', side:'union', q:9,  r:4, morale:78, strength:7,  infl:7, ldrorg:8, loyal:8, hlth:8 },
+      { id:'u8', name:"Gen. Schofield",     commander:'Maj. Gen. Schofield',     type:'general',   side:'union', q:13, r:2, morale:86, strength:10, infl:8, ldrorg:8, loyal:8, hlth:8 },
+    ],
+    reinforcements: [],
   },
 ];
