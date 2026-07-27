@@ -4,6 +4,11 @@ const FONT_TITLE = 'bold 13px serif';
 const FONT_BODY  = '11px sans-serif';
 const FONT_SMALL = '10px sans-serif';
 
+// compact = true when the game is scaled below ~72% (mobile landscape / small screens)
+function isCompact() {
+  return Math.min(window.innerWidth / W, window.innerHeight / H) < 0.72;
+}
+
 const BUILD_LABEL = (() => {
   if (typeof __BUILD_TIME__ === 'undefined') return '';
   const d = new Date(__BUILD_TIME__);
@@ -21,7 +26,7 @@ export function drawHUD(ctx, game) {
   const confMorale  = getArmyMorale(game.units, 'confederate');
   const unionPct    = unionMorale / (game.startMorale?.union  || 1);
   const confPct     = confMorale  / (game.startMorale?.confederate || 1);
-  const compact     = HUD_H <= 60;
+  const compact     = isCompact();
 
   ctx.fillStyle = COLORS.hud;
   ctx.fillRect(0, 0, W, HUD_H);
@@ -128,7 +133,7 @@ export function drawBottomPanel(ctx, game) {
     return;
   }
 
-  const compact = PANEL_H <= 85;
+  const compact = isCompact();
 
   if (sel) {
     drawUnitIdentity(ctx, sel, compact);
@@ -308,7 +313,7 @@ function getButtonRects(game) {
   const btns = getButtons(game);
   if (!btns.length) return [];
 
-  const compact  = PANEL_H <= 85;
+  const compact  = isCompact();
   const bw       = compact ? 80 : 80;
   const bh       = compact ? 28 : 22;
   const gap      = 5;

@@ -11,8 +11,9 @@ let offsetY = 0;
 
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  const sw = window.innerWidth;
-  const sh = window.innerHeight;
+  const vp = window.visualViewport;
+  const sw = vp ? vp.width  : window.innerWidth;
+  const sh = vp ? vp.height : window.innerHeight;
   scale = Math.min(sw / W, sh / H);
   const displayW = W * scale;
   const displayH = H * scale;
@@ -43,7 +44,10 @@ function onPointer(e) {
 }
 
 canvas.addEventListener('pointerdown', onPointer, { passive: false });
-canvas.addEventListener('touchstart', onPointer, { passive: false });
+// visualViewport fires on mobile when address bar appears/disappears; resize covers desktop
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resize);
+}
 window.addEventListener('resize', resize);
 
 let last = 0;
