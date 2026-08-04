@@ -101,6 +101,16 @@ export const MORALE_RETREAT_THRESHOLD = 28;
 export const VICTORY_MORALE_PCT = 0.28;
 export const DIG_IN_COVER = 0.22;
 
+// Heal & replenish
+export const REST_MORALE_GAIN     = 5;    // morale gained when a unit waits its turn
+export const REST_ORG_GAIN        = 6;    // org gained when a unit waits its turn
+export const REORG_STRENGTH_GAIN  = 2;    // strength gained per reorganize action
+export const REORG_STRENGTH_CAP   = 0.75; // reorganize recovers up to this fraction of maxStrength
+export const NIGHT_STRENGTH_BASE  = 4;    // strength recovered per night (open terrain)
+export const NIGHT_STRENGTH_TOWN  = 6;    // strength recovered per night (town = field hospital)
+export const GENERAL_AURA_RANGE   = 2;    // hex radius of general's rally aura
+export const GENERAL_AURA_MORALE  = 2;    // morale gained per turn within aura
+
 export const BATTLES = [
   {
     id: 'bullrun', name: 'FIRST BULL RUN',

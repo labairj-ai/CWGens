@@ -379,6 +379,7 @@ export function getButtons(game) {
     if (canDigIn) {
       buttons.push({ label: 'DIG IN', id: 'digin', hot: sel.dugIn, disabled: false });
     }
+    buttons.push({ label: 'REORG', id: 'reorg', hot: false, disabled: false });
     buttons.push({ label: 'WAIT', id: 'wait', hot: false, disabled: false });
   }
 

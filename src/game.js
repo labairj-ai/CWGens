@@ -3,6 +3,10 @@ import {
   TERRAIN, MORALE_ROUT_THRESHOLD, MORALE_RETREAT_THRESHOLD,
   VICTORY_MORALE_PCT, TURNS_PER_DAY, MAX_TURNS,
   DIG_IN_COVER, HUD_H, PANEL_TOP, W, H,
+  REST_MORALE_GAIN, REST_ORG_GAIN,
+  REORG_STRENGTH_GAIN, REORG_STRENGTH_CAP,
+  NIGHT_STRENGTH_BASE, NIGHT_STRENGTH_TOWN,
+  GENERAL_AURA_RANGE, GENERAL_AURA_MORALE,
 } from './constants.js';
 import {
   getMovableHexes, getAttackableTargets, getHexesInAttackRange,
@@ -55,6 +59,7 @@ export class Game {
       ammo: UNIT_TYPES[u.type].ammoCap,
       hasMoved: false,
       hasAttacked: false,
+      rested: false,
       routed: false,
       dugIn: false,
       _typeDef: UNIT_TYPES[u.type],
@@ -170,7 +175,12 @@ export class Game {
     if (id === 'wait' && this.selectedUnit) {
       this.selectedUnit.hasMoved = true;
       this.selectedUnit.hasAttacked = true;
+      this.selectedUnit.rested = true;
       this.clearSelection();
+      return;
+    }
+    if (id === 'reorg' && this.selectedUnit) {
+      this.reorganizeUnit(this.selectedUnit);
       return;
     }
     if (id === 'digin' && this.selectedUnit) {
@@ -392,8 +402,10 @@ export class Game {
 
   endPlayerTurn() {
     this.clearSelection();
+    this.applyRestBonus(this.playerSide, false);
+    this.applyGeneralAura(this.playerSide);
     this.units.forEach(u => {
-      if (u.side === this.playerSide) { u.hasMoved = false; u.hasAttacked = false; }
+      if (u.side === this.playerSide) { u.hasMoved = false; u.hasAttacked = false; u.rested = false; }
     });
     this.state = S.ENEMY_TURN;
     this.turn++;
@@ -421,8 +433,10 @@ export class Game {
 
   finishEnemyTurn() {
     const aiSide = this.playerSide === 'union' ? 'confederate' : 'union';
+    this.applyRestBonus(aiSide, true);
+    this.applyGeneralAura(aiSide);
     this.units.forEach(u => {
-      if (u.side === aiSide) { u.hasMoved = false; u.hasAttacked = false; }
+      if (u.side === aiSide) { u.hasMoved = false; u.hasAttacked = false; u.rested = false; }
     });
 
     this.checkVictory();
@@ -443,11 +457,69 @@ export class Game {
 
   applyNightRecovery() {
     this.units.forEach(u => {
-      if (!u.routed) {
-        u.morale = Math.min(100, u.morale + 12);
-        u.org = Math.min(100, u.org + 20);
-        u.ammo = Math.min(u._typeDef.ammoCap, u.ammo + 2);
-        u.strength = Math.min(u.maxStrength, u.strength + 0.5);
+      if (u.routed) {
+        u.routed = false;
+        u.morale = 20;
+        u.org = 18;
+        u.ammo = Math.floor(u._typeDef.ammoCap * 0.4);
+      } else {
+        const onTown  = this.terrain[u.r][u.q] === 'T';
+        const strGain = onTown ? NIGHT_STRENGTH_TOWN : NIGHT_STRENGTH_BASE;
+        u.morale   = Math.min(100, u.morale + 15);
+        u.org      = Math.min(100, u.org    + 22);
+        u.ammo     = Math.min(u._typeDef.ammoCap, u.ammo + 2);
+        u.strength = Math.min(u.maxStrength, u.strength + strGain);
+      }
+    });
+  }
+
+  reorganizeUnit(unit) {
+    const dugBonus = unit.dugIn ? 1.6 : 1;
+    const onRoad   = this.terrain[unit.r][unit.q] === 'R';
+    const ammoGain = onRoad ? 2 : 1;
+
+    const strCap  = unit.maxStrength * REORG_STRENGTH_CAP;
+    const newStr  = Math.min(strCap, unit.strength + REORG_STRENGTH_GAIN);
+    const strGain = Math.max(0, newStr - unit.strength);
+
+    unit.org      = Math.min(100, unit.org    + Math.round(22 * dugBonus));
+    unit.morale   = Math.min(100, unit.morale + Math.round(7  * dugBonus));
+    unit.ammo     = Math.min(unit._typeDef.ammoCap, unit.ammo + ammoGain);
+    unit.strength = newStr;
+    unit.hasMoved    = true;
+    unit.hasAttacked = true;
+
+    const orgGain = Math.round(22 * dugBonus);
+    const morGain = Math.round(7  * dugBonus);
+    const notes   = [unit.dugIn ? '(dug-in)' : '', onRoad ? '(road supply)' : ''].filter(Boolean).join(' ');
+    this.combatMsg = {
+      title: `${unit.name} Reorganizes`,
+      body:  `+${orgGain} org · +${morGain} morale · +${ammoGain} ammo · +${strGain.toFixed(1)} str${notes ? ' ' + notes : ''}`,
+      color: '#88ccaa',
+      time:  performance.now(),
+    };
+    this.clearSelection();
+  }
+
+  applyRestBonus(side, useActionFlags) {
+    this.units.forEach(u => {
+      if (u.side !== side || u.routed) return;
+      const didRest = useActionFlags ? (!u.hasMoved && !u.hasAttacked) : u.rested;
+      if (!didRest) return;
+      const morGain = u.dugIn ? REST_MORALE_GAIN + 3 : REST_MORALE_GAIN;
+      const orgGain = u.dugIn ? REST_ORG_GAIN    + 4 : REST_ORG_GAIN;
+      u.morale = Math.min(100, u.morale + morGain);
+      u.org    = Math.min(100, u.org    + orgGain);
+    });
+  }
+
+  applyGeneralAura(side) {
+    const general = this.units.find(u => u.side === side && u.type === 'general' && !u.routed);
+    if (!general) return;
+    this.units.forEach(u => {
+      if (u.side !== side || u.routed || u.type === 'general') return;
+      if (hexDistance(general.q, general.r, u.q, u.r) <= GENERAL_AURA_RANGE) {
+        u.morale = Math.min(100, u.morale + GENERAL_AURA_MORALE);
       }
     });
   }
@@ -466,6 +538,7 @@ export class Game {
         ammo: UNIT_TYPES[rein.type].ammoCap,
         hasMoved: false,
         hasAttacked: false,
+        rested: false,
         routed: false,
         dugIn: false,
         _typeDef: UNIT_TYPES[rein.type],
